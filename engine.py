@@ -212,7 +212,8 @@ class MotorClasificador:
         :return: Array: (iduser,(followers, friends, reputacion)
          EJEMPLO: [(194598018, (184, 79, 80.0))]
         """
-        return self.usuarios_RDD.filter(lambda t: t[0] == user_id).mapValues(lambda t: (t[2], t[3], float(float(t[2]) / float(t[2]) + float(t[3])))).collect()
+        return self.usuarios_RDD.filter(lambda t: t[0] == user_id).\
+            mapValues(lambda t: (t[2], t[3], float(float(t[2]) / float(t[2]) + float(t[3])))).collect()
 
     def geo_enable(self):
         """ Filtra la cuentas que posean el geo_enable = True
@@ -280,7 +281,8 @@ class MotorClasificador:
         """
         Retorna las distintas fuentes generadas por todos los tweets
         y la cantidad de veces utilizada
-        :return: RDD (fuente,Nrepticiones) EJEMPLO: {u'<a href="http://www.hootsuite.com" rel="nofollow">Hootsuite</a>', 861}
+        :return: RDD (fuente,Nrepticiones)
+        EJEMPLO: {u'<a href="http://www.hootsuite.com" rel="nofollow">Hootsuite</a>', 861}
         """
         return self.tweets_RDD.map(lambda t: (t[1][9], 1)).reduceByKey(lambda a, b: a + b)
 
@@ -290,7 +292,8 @@ class MotorClasificador:
         :param desc: orden en el que se desea obtener el resultado
         :return: Array con las N fuentes MAS o MENOS utilizadas, dependiendo de si se ordena
         ascendente o descendete.
-        EJEMPLO:  RDD.fuentes_mas_utilizadas_general(2) [(u'<a href="http://twitter.com" rel="nofollow">Twitter Web Client</a>', 459),
+        EJEMPLO: RDD.fuentes_mas_utilizadas_general(2) =>
+        [(u'<a href="http://twitter.com" rel="nofollow">Twitter Web Client</a>', 459),
         (u'<a href="http://blackberry.com/twitter" rel="nofollow">Twitter for BlackBerry\xae</a>', 183)]
         """
         if desc:
@@ -312,7 +315,8 @@ class MotorClasificador:
         EJEMPLO: [((192286676, u'<a href="http://twitter.com" rel="nofollow">Twitter Web Client</a>'), 106),
          ((192286676, u'<a href="https://about.twitter.com/products/tweetdeck" rel="nofollow">TweetDeck</a>'), 59)]
         """
-        return self.tweets_RDD().filter(lambda t: t[1][0] == user_id).map(lambda t: ((t[1][0], t[1][9]), 1)).reduceByKey(lambda a, b: a + b).collect()
+        return self.tweets_RDD().filter(lambda t: t[1][0] == user_id).map(lambda t: ((t[1][0], t[1][9]), 1))\
+            .reduceByKey(lambda a, b: a + b).collect()
 
     def fuentes_mas_utilizadas_de_usuario(self, user_id, n, desc=True):
         """ Retorna las n fuentes mas utilizadas del usuario user_id
@@ -321,7 +325,8 @@ class MotorClasificador:
         :param desc: Ordenar de forma descendente o ascendente?
         :return: Array con las N fuentes MAS o MENOS utilizadas, dependiendo del ordenado
         ascendente o descendete.
-        EJEMPLO:  RDD.fuentes_mas_utilizadas_de_usuario(2,183641931) [((183641931, u'<a href="http://twitter.com/download/android" rel="nofollow">Twitter for Android</a>'), 52),
+        EJEMPLO:  RDD.fuentes_mas_utilizadas_de_usuario(2,183641931) =>
+        [((183641931, u'<a href="http://twitter.com/download/android" rel="nofollow">Twitter for Android</a>'), 52),
          ((183641931, u'<a href="http://www.steelthorn.com" rel="nofollow">QuickPull</a>'), 2)]
         """
         if desc:
