@@ -36,10 +36,10 @@ class MotorClasificador:
         logger.info("Cargando timelines...")
         df1 = sqlcontext.jsonRDD(timeline)
         logger.info("Filtrando archivos vacios...")
-        df = df1.filter("length(text)>0")
-        df.repartition(df.user.id)
+        self.df = df1.filter("length(text)>0").cache()
+        self.df.repartition(self.df.user.id)
 
-        self.tweets_RDD = df.map(lambda t: (t.id, (
+        self.tweets_RDD = self.df.map(lambda t: (t.id, (
             t.user.id,
             t.user.screen_name,
             t.id,
@@ -60,7 +60,7 @@ class MotorClasificador:
 
         # tweets.repartition(tweets.user.id)
 
-        self.usuarios_RDD = df.map(lambda t: (t.user.id, (
+        self.usuarios_RDD = self.df.map(lambda t: (t.user.id, (
             t.user.id,
             t.user.default_profile_image,
             t.user.followers_count,
@@ -88,11 +88,10 @@ class MotorClasificador:
             t.user.location,
             t.user.url))).distinct()
 
-    def count_tweets(self):
+    def cantidad_tweets(self):
         """Contar la cantidad de tweets en
                 self.tweets_RDD
         """
-        # self.n_tweets = self.tweets_RDD.count()
         return self.tweets_RDD.count()
 
     def tweets_usuario(self):
@@ -237,3 +236,10 @@ class MotorClasificador:
         :return: usuario
         """
         return self.usuarios_RDD.filter(lambda t: t[1][8] == user_screen_name).first()
+
+    def fuentes_distintas_general(self):
+        """Retorna las distintas fuentes generadas por todos los tweets
+        y la cantidad de veces utilizada
+        :return: (fuente:Nrepticiones) EJEMPLO: {u'<a href="http://www.hootsuite.com" rel="nofollow">Hootsuite</a>': 861}
+        """
+        return self.tweets_RDD.map(lambda t: t[1][9]).countByValue()
