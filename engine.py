@@ -201,9 +201,18 @@ class MotorClasificador:
     def reputacion(self):
         """ Calcula la reputación de cada cuenta
                 reputacion = followers/(followers + friends)
-        :return: RDD (iduser,reputacion)
+        :return: RDD (iduser,(followers, friends, reputacion)
         """
         return self.usuarios_RDD.mapValues(lambda t: (t[2], t[3], float(float(t[2]) / float(t[2]) + float(t[3]))))
+
+    def get_reputacion(self, user_id):
+        """ Calcula la reputacion del usuario especificado
+                reputacion = followers/(followers + friends)
+        :param user_id: id del usuario a calcular la reputacion
+        :return: Array: (iduser,(followers, friends, reputacion)
+         EJEMPLO: [(194598018, (184, 79, 80.0))]
+        """
+        return self.usuarios_RDD.filter(lambda t: t[0] == user_id).mapValues(lambda t: (t[2], t[3], float(float(t[2]) / float(t[2]) + float(t[3])))).collect()
 
     def geo_enable(self):
         """ Filtra la cuentas que posean el geo_enable = True
@@ -227,11 +236,31 @@ class MotorClasificador:
         """
         return self.usuarios_RDD.filter(lambda t: t[1][4] == True)
 
+    def check_perfil_verificado(self, user_id):
+        """ Revisa si el usuario posee el perfil verificado
+        :param user_id: id del usuario a verificar
+        :return: True or false
+        """
+        if len(self.usuarios_RDD.filter(lambda t: t[0] == user_id and t[1][4] == True).collect()) > 0:
+            return True
+        else:
+            return False
+
     def imagen_perfil_default(self):
         """ Filtra las cuentas que no posean la imagen de perfil por defecto
         :return: RDD de cuentas con imagen de perfil por defecto
         """
         return self.usuarios_RDD.filter(lambda t: t[1][1] == True)
+
+    def check_imagen_perfil_default(self, user_id):
+        """ Revisa si el usuario posee la imagen de perfil por defecto
+        :param user_id: id del usuario a verificar
+        :return: True or false
+        """
+        if len(self.usuarios_RDD.filter(lambda t: t[0] == user_id and t[1][1] == True).collect()) > 0:
+            return True
+        else:
+            return False
 
     def get_user_by_id(self, user_id):
         """ Obtiene la informacion referente al id del usuario solicitado
@@ -300,4 +329,9 @@ class MotorClasificador:
         else:
             return self.fuentes_de_usuario(user_id).takeOrdered(n, key=lambda x: x[1])
 
+    def avg_palabras(self):
+        """ Calcula el promedio de palabras que utilizan los usuario
+        en sus tweets
+        :return: RDD (id_usuario,avg_palabras)
+        """
 
