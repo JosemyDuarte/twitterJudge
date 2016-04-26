@@ -211,6 +211,16 @@ class MotorClasificador:
         """
         return self.usuarios_RDD.filter(lambda t: t[1][7] == True)
 
+    def check_user_geo_enable(self, user_id):
+        """ Revisa si el usuario posee la opcion geo_enable activada
+        :param user_id: id del usuario a verificar
+        :return: True or false
+        """
+        if len(self.usuarios_RDD.filter(lambda t: t[0] == user_id and t[1][7] == True).collect()) > 0:
+            return True
+        else:
+            return False
+
     def perfil_verificado(self):
         """ Filtra las cuentas que posean el perfil verificado
         :return: RDD de cuentas con perfil verficado
@@ -259,7 +269,7 @@ class MotorClasificador:
         else:
             return self.fuentes_distintas_general().takeOrdered(n, key=lambda x: x[1])
 
-    def __fuentes_por_usuario(self):
+    def fuentes_por_usuario(self):
         """ Calcula la cantidad de fuentes distintas utilizadas
         en el timeline de cada usuario
         :return RDD (id_usuario,fuente,nveces)
@@ -268,11 +278,12 @@ class MotorClasificador:
 
     def fuentes_de_usuario(self, user_id):
         """ Retorna las fuentes utilizadas por el usuario dado
+        :param user_id: id del usuario a retornar
         :return Array ((user_id,fuente),nveces)
         EJEMPLO: [((192286676, u'<a href="http://twitter.com" rel="nofollow">Twitter Web Client</a>'), 106),
          ((192286676, u'<a href="https://about.twitter.com/products/tweetdeck" rel="nofollow">TweetDeck</a>'), 59)]
         """
-        return self.__fuentes_por_usuario().filter(lambda t: t[0][0] == user_id).collect()
+        return self.tweets_RDD().filter(lambda t: t[1][0] == user_id).map(lambda t: ((t[1][0], t[1][9]), 1)).reduceByKey(lambda a, b: a + b).collect()
 
     def fuentes_mas_utilizadas_de_usuario(self, user_id, n, desc=True):
         """ Retorna las n fuentes mas utilizadas del usuario user_id
@@ -288,4 +299,5 @@ class MotorClasificador:
             return self.fuentes_de_usuario(user_id).takeOrdered(n, key=lambda x: -x[1])
         else:
             return self.fuentes_de_usuario(user_id).takeOrdered(n, key=lambda x: x[1])
+
 
