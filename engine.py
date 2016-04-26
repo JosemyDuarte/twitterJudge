@@ -238,8 +238,54 @@ class MotorClasificador:
         return self.usuarios_RDD.filter(lambda t: t[1][8] == user_screen_name).first()
 
     def fuentes_distintas_general(self):
-        """Retorna las distintas fuentes generadas por todos los tweets
-        y la cantidad de veces utilizada
-        :return: (fuente:Nrepticiones) EJEMPLO: {u'<a href="http://www.hootsuite.com" rel="nofollow">Hootsuite</a>': 861}
         """
-        return self.tweets_RDD.map(lambda t: t[1][9]).countByValue()
+        Retorna las distintas fuentes generadas por todos los tweets
+        y la cantidad de veces utilizada
+        :return: RDD (fuente,Nrepticiones) EJEMPLO: {u'<a href="http://www.hootsuite.com" rel="nofollow">Hootsuite</a>', 861}
+        """
+        return self.tweets_RDD.map(lambda t: (t[1][9], 1)).reduceByKey(lambda a, b: a + b)
+
+    def fuentes_mas_utilizadas_general(self, n, desc=True):
+        """ Retorna las n fuentes mas utilizadas en la base general de tweets
+        :param n: cantidad de fuentes a retornar
+        :param desc: orden en el que se desea obtener el resultado
+        :return: Array con las N fuentes MAS o MENOS utilizadas, dependiendo de si se ordena
+        ascendente o descendete.
+        EJEMPLO:  RDD.fuentes_mas_utilizadas_general(2) [(u'<a href="http://twitter.com" rel="nofollow">Twitter Web Client</a>', 459),
+        (u'<a href="http://blackberry.com/twitter" rel="nofollow">Twitter for BlackBerry\xae</a>', 183)]
+        """
+        if desc:
+            return self.fuentes_distintas_general().takeOrdered(n, key=lambda x: -x[1])
+        else:
+            return self.fuentes_distintas_general().takeOrdered(n, key=lambda x: x[1])
+
+    def __fuentes_por_usuario(self):
+        """ Calcula la cantidad de fuentes distintas utilizadas
+        en el timeline de cada usuario
+        :return RDD (id_usuario,fuente,nveces)
+        """
+        return self.tweets_RDD.map(lambda t: ((t[1][0], t[1][9]), 1)).reduceByKey(lambda a, b: a + b)
+
+    def fuentes_de_usuario(self, user_id):
+        """ Retorna las fuentes utilizadas por el usuario dado
+        :return Array ((user_id,fuente),nveces)
+        EJEMPLO: [((192286676, u'<a href="http://twitter.com" rel="nofollow">Twitter Web Client</a>'), 106),
+         ((192286676, u'<a href="https://about.twitter.com/products/tweetdeck" rel="nofollow">TweetDeck</a>'), 59)]
+        """
+        return self.__fuentes_por_usuario().filter(lambda t: t[0][0] == user_id).collect()
+
+    def fuentes_mas_utilizadas_de_usuario(self, user_id, n, desc=True):
+        """ Retorna las n fuentes mas utilizadas del usuario user_id
+        :param user_id: ID del usuario a buscar
+        :param n: numero de fuentes a retornar
+        :param desc: Ordenar de forma descendente o ascendente?
+        :return: Array con las N fuentes MAS o MENOS utilizadas, dependiendo del ordenado
+        ascendente o descendete.
+        EJEMPLO:  RDD.fuentes_mas_utilizadas_de_usuario(2,183641931) [((183641931, u'<a href="http://twitter.com/download/android" rel="nofollow">Twitter for Android</a>'), 52),
+         ((183641931, u'<a href="http://www.steelthorn.com" rel="nofollow">QuickPull</a>'), 2)]
+        """
+        if desc:
+            return self.fuentes_de_usuario(user_id).takeOrdered(n, key=lambda x: -x[1])
+        else:
+            return self.fuentes_de_usuario(user_id).takeOrdered(n, key=lambda x: x[1])
+
