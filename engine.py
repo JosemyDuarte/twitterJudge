@@ -1,5 +1,6 @@
 from pyspark.sql import SQLContext
 import logging
+from pyspark.mllib.util import MLUtils
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -203,7 +204,7 @@ class MotorClasificador:
                 reputacion = followers/(followers + friends)
         :return: RDD (iduser,(followers, friends, reputacion)
         """
-        return self.usuarios_RDD.mapValues(lambda t: (t[2], t[3], float(float(t[2]) / float(t[2]) + float(t[3]))))
+        return self.usuarios_RDD.mapValues(lambda t: (t[2], t[3], float(float(t[2]) / (float(t[2]) + float(t[3])))))
 
     def get_reputacion(self, user_id):
         """ Calcula la reputacion del usuario especificado
@@ -339,4 +340,3 @@ class MotorClasificador:
         en sus tweets
         :return: RDD (id_usuario,avg_palabras)
         """
-
