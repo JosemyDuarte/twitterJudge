@@ -1,0 +1,140 @@
+INFO:engine:Starting up the Recommendation Engine: 
+INFO:cherrypy.error:[20/May/2016:17:16:21] ENGINE Bus STARTING
+INFO:cherrypy.error:[20/May/2016:17:16:21] ENGINE Started monitor thread '_TimeoutMonitor'.
+INFO:cherrypy.error:[20/May/2016:17:16:21] ENGINE Started monitor thread 'Autoreloader'.
+INFO:cherrypy.error:[20/May/2016:17:16:21] ENGINE Serving on http://0.0.0.0:5432
+INFO:cherrypy.error:[20/May/2016:17:16:21] ENGINE Bus STARTED
+INFO:cherrypy.error:[20/May/2016:17:16:23] ENGINE Keyboard Interrupt: shutting down bus
+INFO:cherrypy.error:[20/May/2016:17:16:23] ENGINE Bus STOPPING
+INFO:cherrypy.error:[20/May/2016:17:16:23] ENGINE HTTP Server cherrypy._cpwsgi_server.CPWSGIServer(('0.0.0.0', 5432)) shut down
+INFO:cherrypy.error:[20/May/2016:17:16:23] ENGINE Stopped thread 'Autoreloader'.
+INFO:cherrypy.error:[20/May/2016:17:16:23] ENGINE Stopped thread '_TimeoutMonitor'.
+INFO:cherrypy.error:[20/May/2016:17:16:23] ENGINE Bus STOPPED
+INFO:cherrypy.error:[20/May/2016:17:16:23] ENGINE Bus EXITING
+INFO:cherrypy.error:[20/May/2016:17:16:23] ENGINE Bus EXITED
+INFO:cherrypy.error:[20/May/2016:17:16:23] ENGINE Waiting for child threads to terminate...
+INFO:engine:Starting up the Recommendation Engine: 
+INFO:cherrypy.error:[20/May/2016:17:17:22] ENGINE Bus STARTING
+INFO:cherrypy.error:[20/May/2016:17:17:22] ENGINE Started monitor thread '_TimeoutMonitor'.
+INFO:cherrypy.error:[20/May/2016:17:17:22] ENGINE Started monitor thread 'Autoreloader'.
+INFO:cherrypy.error:[20/May/2016:17:17:23] ENGINE Serving on http://0.0.0.0:5432
+INFO:cherrypy.error:[20/May/2016:17:17:23] ENGINE Bus STARTED
+ERROR:app:Exception on /carga_inicial/ [POST]
+Traceback (most recent call last):
+  File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1817, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1477, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1381, in handle_user_exception
+    reraise(exc_type, exc_value, tb)
+  File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1475, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1461, in dispatch_request
+    return self.view_functions[rule.endpoint](**req.view_args)
+  File "/home/jduarte/Workspace/TesisSpark/app.py", line 21, in carga_inicial
+    if not contenido["bot"]:
+TypeError: 'NoneType' object has no attribute '__getitem__'
+INFO:cherrypy.error:[20/May/2016:17:20:36] ENGINE Restarting because /home/jduarte/Workspace/TesisSpark/app.py changed.
+INFO:cherrypy.error:[20/May/2016:17:20:36] ENGINE Stopped thread 'Autoreloader'.
+INFO:cherrypy.error:[20/May/2016:17:20:36] ENGINE Bus STOPPING
+INFO:cherrypy.error:[20/May/2016:17:20:36] ENGINE HTTP Server cherrypy._cpwsgi_server.CPWSGIServer(('0.0.0.0', 5432)) shut down
+INFO:cherrypy.error:[20/May/2016:17:20:36] ENGINE Stopped thread '_TimeoutMonitor'.
+INFO:cherrypy.error:[20/May/2016:17:20:36] ENGINE Bus STOPPED
+INFO:cherrypy.error:[20/May/2016:17:20:36] ENGINE Bus EXITING
+INFO:cherrypy.error:[20/May/2016:17:20:36] ENGINE Bus EXITED
+INFO:cherrypy.error:[20/May/2016:17:20:36] ENGINE Waiting for child threads to terminate...
+INFO:cherrypy.error:[20/May/2016:17:20:36] ENGINE Re-spawning /home/jduarte/Workspace/TesisSpark/server.py
+INFO:engine:Starting up the Recommendation Engine: 
+INFO:cherrypy.error:[20/May/2016:17:21:17] ENGINE Bus STARTING
+INFO:cherrypy.error:[20/May/2016:17:21:17] ENGINE Started monitor thread '_TimeoutMonitor'.
+INFO:cherrypy.error:[20/May/2016:17:21:17] ENGINE Started monitor thread 'Autoreloader'.
+INFO:cherrypy.error:[20/May/2016:17:21:17] ENGINE Serving on http://0.0.0.0:5432
+INFO:cherrypy.error:[20/May/2016:17:21:17] ENGINE Bus STARTED
+INFO:root:None
+ERROR:app:Exception on /carga_inicial/ [POST]
+Traceback (most recent call last):
+  File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1817, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1477, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1381, in handle_user_exception
+    reraise(exc_type, exc_value, tb)
+  File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1475, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1461, in dispatch_request
+    return self.view_functions[rule.endpoint](**req.view_args)
+  File "/home/jduarte/Workspace/TesisSpark/app.py", line 22, in carga_inicial
+    if not contenido["bot"]:
+TypeError: 'NoneType' object has no attribute '__getitem__'
+INFO:cherrypy.error:[20/May/2016:17:21:49] ENGINE Restarting because /home/jduarte/Workspace/TesisSpark/app.py changed.
+INFO:cherrypy.error:[20/May/2016:17:21:49] ENGINE Stopped thread 'Autoreloader'.
+INFO:cherrypy.error:[20/May/2016:17:21:49] ENGINE Bus STOPPING
+INFO:cherrypy.error:[20/May/2016:17:21:49] ENGINE HTTP Server cherrypy._cpwsgi_server.CPWSGIServer(('0.0.0.0', 5432)) shut down
+INFO:cherrypy.error:[20/May/2016:17:21:49] ENGINE Stopped thread '_TimeoutMonitor'.
+INFO:cherrypy.error:[20/May/2016:17:21:49] ENGINE Bus STOPPED
+INFO:cherrypy.error:[20/May/2016:17:21:49] ENGINE Bus EXITING
+INFO:cherrypy.error:[20/May/2016:17:21:49] ENGINE Bus EXITED
+INFO:cherrypy.error:[20/May/2016:17:21:49] ENGINE Waiting for child threads to terminate...
+INFO:cherrypy.error:[20/May/2016:17:21:49] ENGINE Re-spawning /home/jduarte/Workspace/TesisSpark/server.py
+INFO:engine:Starting up the Recommendation Engine: 
+INFO:cherrypy.error:[20/May/2016:17:22:04] ENGINE Bus STARTING
+INFO:cherrypy.error:[20/May/2016:17:22:04] ENGINE Started monitor thread '_TimeoutMonitor'.
+INFO:cherrypy.error:[20/May/2016:17:22:04] ENGINE Started monitor thread 'Autoreloader'.
+INFO:cherrypy.error:[20/May/2016:17:22:04] ENGINE Serving on http://0.0.0.0:5432
+INFO:cherrypy.error:[20/May/2016:17:22:04] ENGINE Bus STARTED
+ERROR:app:Exception on /carga_inicial/ [POST]
+Traceback (most recent call last):
+  File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1817, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1477, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1381, in handle_user_exception
+    reraise(exc_type, exc_value, tb)
+  File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1475, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1461, in dispatch_request
+    return self.view_functions[rule.endpoint](**req.view_args)
+  File "/home/jduarte/Workspace/TesisSpark/app.py", line 20, in carga_inicial
+    contenido = request.json()
+TypeError: 'NoneType' object is not callable
+ERROR:app:Exception on /carga_inicial/ [POST]
+Traceback (most recent call last):
+  File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1817, in wsgi_app
+    response = self.full_dispatch_request()
+  File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1477, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1381, in handle_user_exception
+    reraise(exc_type, exc_value, tb)
+  File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1475, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "/usr/local/lib/python2.7/dist-packages/flask/app.py", line 1461, in dispatch_request
+    return self.view_functions[rule.endpoint](**req.view_args)
+  File "/home/jduarte/Workspace/TesisSpark/app.py", line 20, in carga_inicial
+    contenido = request.json()
+TypeError: 'dict' object is not callable
+INFO:cherrypy.error:[20/May/2016:17:24:21] ENGINE Keyboard Interrupt: shutting down bus
+INFO:cherrypy.error:[20/May/2016:17:24:21] ENGINE Bus STOPPING
+INFO:cherrypy.error:[20/May/2016:17:24:21] ENGINE HTTP Server cherrypy._cpwsgi_server.CPWSGIServer(('0.0.0.0', 5432)) shut down
+INFO:cherrypy.error:[20/May/2016:17:24:21] ENGINE Stopped thread 'Autoreloader'.
+INFO:cherrypy.error:[20/May/2016:17:24:21] ENGINE Stopped thread '_TimeoutMonitor'.
+INFO:cherrypy.error:[20/May/2016:17:24:21] ENGINE Bus STOPPED
+INFO:cherrypy.error:[20/May/2016:17:24:21] ENGINE Bus EXITING
+INFO:cherrypy.error:[20/May/2016:17:24:21] ENGINE Bus EXITED
+INFO:cherrypy.error:[20/May/2016:17:24:21] ENGINE Waiting for child threads to terminate...
+INFO:engine:Starting up the Recommendation Engine: 
+INFO:cherrypy.error:[20/May/2016:17:25:38] ENGINE Bus STARTING
+INFO:cherrypy.error:[20/May/2016:17:25:38] ENGINE Started monitor thread '_TimeoutMonitor'.
+INFO:cherrypy.error:[20/May/2016:17:25:38] ENGINE Started monitor thread 'Autoreloader'.
+INFO:cherrypy.error:[20/May/2016:17:25:38] ENGINE Serving on http://0.0.0.0:5432
+INFO:cherrypy.error:[20/May/2016:17:25:38] ENGINE Bus STARTED
+INFO:root:{u'humano': u'/direccion/humano/', u'ciborg': u'/direccion/ciborg/', u'bot': u'/direcion/bots'}
+INFO:engine:HUMANO: /direccion/humano/
+INFO:cherrypy.error:[20/May/2016:17:25:57] ENGINE Keyboard Interrupt: shutting down bus
+INFO:cherrypy.error:[20/May/2016:17:25:57] ENGINE Bus STOPPING
+INFO:cherrypy.error:[20/May/2016:17:25:57] ENGINE HTTP Server cherrypy._cpwsgi_server.CPWSGIServer(('0.0.0.0', 5432)) shut down
+INFO:cherrypy.error:[20/May/2016:17:25:57] ENGINE Stopped thread 'Autoreloader'.
+INFO:cherrypy.error:[20/May/2016:17:25:57] ENGINE Stopped thread '_TimeoutMonitor'.
+INFO:cherrypy.error:[20/May/2016:17:25:57] ENGINE Bus STOPPED
+INFO:cherrypy.error:[20/May/2016:17:25:57] ENGINE Bus EXITING
+INFO:cherrypy.error:[20/May/2016:17:25:57] ENGINE Bus EXITED
+INFO:cherrypy.error:[20/May/2016:17:25:57] ENGINE Waiting for child threads to terminate...

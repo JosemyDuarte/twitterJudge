@@ -1,16 +1,12 @@
+import os
 from pyspark.sql import SQLContext
 import logging
 from pyspark.mllib.util import MLUtils
 
-logging.basicConfig(level=logging.INFO)
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+logging.basicConfig(filename="logs/engine.log", level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
-def not_none(a):
-    if a is not None:
-        return 1
-    else:
-        return 0
 
 
 def lexical_diversity(text):
@@ -25,69 +21,72 @@ class MotorClasificador:
     """Motor del clasificador de cuentas
     """
 
-    def __init__(self, sc, dataset_path):
-        """Arranca el motor para las clasificaciones dado un Spark Context y una dirección para el dataset
+    def __init__(self, sc):
+        """Inicializa el SparkContext
         """
 
         self.sc = sc
+        self.df = None
+        self.tweets_RDD = None
+        self.usuarios_RDD = None
+        self.modelo = None
         logger.info("Starting up the Recommendation Engine: ")
 
-        timeline = sc.textFile(dataset_path)
+    def carga_inicial(self, directorios):
+        """Realiza la carga inicial del clasificador
+        y entrena el modelo
+        """
+        logger.info("HUMANO: %s", directorios["humano"])
+        return True
+        timeline_humano = self.sc.textFile(directorios["humano"])
         sqlcontext = SQLContext(self.sc)
         logger.info("Cargando timelines...")
-        df1 = sqlcontext.jsonRDD(timeline)
-        logger.info("Filtrando archivos vacios...")
-        self.df = df1.filter("length(text)>0").cache()
+        self.df = sqlcontext.jsonRDD(timeline_humano).cache()
         self.df.repartition(self.df.user.id)
 
-        self.tweets_RDD = self.df.map(lambda t: (t.id, (
+        self.tweets_RDD = self.df.map(lambda t: (t.user.id, (
             t.user.id,
             t.user.screen_name,
             t.id,
-            t.truncated,
             t.text,
             t.entities,
             t.is_quote_status,
             t.in_reply_to_status_id,
             t.favorite_count,
             t.source,
-            t.in_reply_to_screen_name,
-            t.in_reply_to_user_id,
             t.retweet_count,
             t.geo,
             t.lang,
             t.created_at,
             t.place)))
 
-        # tweets.repartition(tweets.user.id)
-
         self.usuarios_RDD = self.df.map(lambda t: (t.user.id, (
-            t.user.id,
-            t.user.default_profile_image,
-            t.user.followers_count,
-            t.user.friends_count,
-            t.user.verified,
-            t.user.listed_count,
-            t.user.statuses_count,
-            t.user.geo_enabled,
-            t.user.screen_name,
-            t.user.lang,
-            t.user.favourites_count,
-            t.user.created_at,
-            t.user.default_profile,
-            t.user.is_translator,
-            t.user.contributors_enabled,
-            t.user.is_translation_enabled,
-            t.user.description,
-            t.user.profile_use_background_image,
-            t.user.profile_background_tile,
-            t.user.profile_link_color,
-            t.user.profile_sidebar_border_color,
-            t.user.profile_background_color,
-            t.user.has_extended_profile,
-            t.user.profile_text_color,
-            t.user.location,
-            t.user.url))).distinct()
+            t.user.id,  # 0
+            t.user.default_profile_image,  # 1
+            t.user.followers_count,  # 2
+            t.user.friends_count,  # 3
+            t.user.verified,  # 4
+            t.user.listed_count,  # 5
+            t.user.statuses_count,  # 6
+            t.user.geo_enabled,  # 7
+            t.user.screen_name,  # 8
+            t.user.lang,  # 9
+            t.user.favourites_count,  # 10
+            t.user.created_at,  # 11
+            t.user.default_profile,  # 12
+            t.user.is_translator,  # 13
+            t.user.contributors_enabled,  # 14
+            t.user.is_translation_enabled,  # 15
+            t.user.description,  # 16
+            t.user.profile_use_background_image,  # 17
+            t.user.profile_background_tile,  # 18
+            t.user.profile_link_color,  # 19
+            t.user.profile_sidebar_border_color,  # 20
+            t.user.profile_background_color,  # 21
+            t.user.has_extended_profile,  # 22
+            t.user.profile_text_color,  # 23
+            t.user.location,  # 24
+            t.user.url))).distinct()  # 25
 
     def cantidad_tweets(self):
         """Contar la cantidad de tweets en
@@ -200,7 +199,7 @@ class MotorClasificador:
         return self.usuarios_RDD.mapValues(lambda t: (t[2], t[3], float(float(t[2]) / float(t[3]))))
 
     def reputacion(self):
-        """ Calcula la reputación de cada cuenta
+        """ Calcula la reputacion de cada cuenta
                 reputacion = followers/(followers + friends)
         :return: RDD (iduser,(followers, friends, reputacion)
         """
@@ -213,7 +212,7 @@ class MotorClasificador:
         :return: Array: (iduser,(followers, friends, reputacion)
          EJEMPLO: [(194598018, (184, 79, 80.0))]
         """
-        return self.usuarios_RDD.filter(lambda t: t[0] == user_id).\
+        return self.usuarios_RDD.filter(lambda t: t[0] == user_id). \
             mapValues(lambda t: (t[2], t[3], float(float(t[2]) / float(t[2]) + float(t[3])))).collect()
 
     def geo_enable(self):
@@ -316,7 +315,7 @@ class MotorClasificador:
         EJEMPLO: [((192286676, u'<a href="http://twitter.com" rel="nofollow">Twitter Web Client</a>'), 106),
          ((192286676, u'<a href="https://about.twitter.com/products/tweetdeck" rel="nofollow">TweetDeck</a>'), 59)]
         """
-        return self.tweets_RDD().filter(lambda t: t[1][0] == user_id).map(lambda t: ((t[1][0], t[1][9]), 1))\
+        return self.tweets_RDD().filter(lambda t: t[1][0] == user_id).map(lambda t: ((t[1][0], t[1][9]), 1)) \
             .reduceByKey(lambda a, b: a + b).collect()
 
     def fuentes_mas_utilizadas_de_usuario(self, user_id, n, desc=True):

@@ -4,6 +4,7 @@ from app import create_app
 from pyspark import SparkContext
 from pyspark.conf import SparkConf
 
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 def init_spark_context():
     conf = SparkConf()
@@ -11,10 +12,7 @@ def init_spark_context():
 
     sc = SparkContext(conf=conf, pyFiles=['/home/jduarte/Workspace/TesisSpark/engine.py',
                                           '/home/jduarte/Workspace/TesisSpark/app.py'])
-
     return sc
-
-    # inputFile = "/home/jduarte/Documentos/1/1450418713.tar.gz"
 
 
 def run_server(app):
@@ -41,7 +39,6 @@ if __name__ == "__main__":
     # Init spark context and load libraries
     sc = init_spark_context()
     dataset_path = "/home/jduarte/Workspace/TesisSpark/datos"
-    app = create_app(sc, dataset_path)
-
+    app = create_app(sc)
     # start web server
     run_server(app)
