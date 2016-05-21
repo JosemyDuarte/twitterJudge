@@ -1,12 +1,12 @@
 from distutils.core import setup
 
 setup(
-    name='TesisSpark',
+    name='TesisSparkAPI',
     version='',
     packages=[''],
     url='',
     license='',
     author='Josemy Duarte',
     author_email='',
-    description='Extraer caracteristcas de Timelines', requires=['flask', 'cherrypy', 'paste']
+    description='Extraer caracteristcas de Timelines', requires=['flask', 'cherrypy', 'paste', 'python-dateutil']
 )

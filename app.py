@@ -9,12 +9,20 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 main = Blueprint('main', __name__)
 
-logging.basicConfig(filename="logs/app.log", level=logging.INFO)
+logging.basicConfig(filename="logs/engine.log",format='%(levelname)s:%(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
-
 
 @main.route("/carga_inicial/", methods=["POST"])
 def carga_inicial():
+    directorio = request.json.get("directorio")
+    logger.debug("Iniciando carga inicial sobre la carpeta: %s", directorio)
+    r = motor_clasificador.carga_inicial(directorio)
+    return json.dumps(dict(resultado=r))
+
+
+@main.route("/cargar_modelo/", methods=["POST"])
+# TODO: Cargar modelo para el arbol (requiere de los 6000)
+def cargar_modelo():
     """Realiza la carga inicial y el entrenamiento del modelo.
     Requiere de la especificacion de los directorios para las 3 categorias.
     EJEMPLO: {"bot":"/carpeta/con/bots","humano":"/carpeta/con/humano/","ciborg":"/carpeta/con/ciborg/"}
@@ -33,7 +41,7 @@ def carga_inicial():
         return json.dumps(dict(exito=False))
 
     logger.debug("Ejecutando carga inicial")
-    motor_clasificador.modelo = motor_clasificador.carga_inicial(contenido)
+    #motor_clasificador.modelo = motor_clasificador.cargar_modelo(contenido)
     logger.debug("Finalizando carga inicial")
     return json.dumps(dict(exito=True))
 

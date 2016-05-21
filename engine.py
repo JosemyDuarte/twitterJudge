@@ -1,20 +1,13 @@
 import os
-from pyspark.sql import SQLContext
-import logging
+from pyspark.sql import SQLContext, Row
+import logging, tools
+from dateutil import parser
 from pyspark.mllib.util import MLUtils
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-logging.basicConfig(filename="logs/engine.log", level=logging.INFO)
+logging.basicConfig(filename="logs/engine.log", format='%(levelname)s:%(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
-def lexical_diversity(text):
-    if len(text) == 0:
-        diversity = 0
-    else:
-        diversity = float(len(set(text))) / len(text)
-    return diversity
 
 
 class MotorClasificador:
@@ -30,63 +23,93 @@ class MotorClasificador:
         self.tweets_RDD = None
         self.usuarios_RDD = None
         self.modelo = None
-        logger.info("Starting up the Recommendation Engine: ")
+        self.sqlcontext = SQLContext(self.sc)
+        logger.info("Calentando motores...")
 
-    def carga_inicial(self, directorios):
+    def carga_inicial(self, directorio):
         """Realiza la carga inicial del clasificador
         y entrena el modelo
         """
-        logger.info("HUMANO: %s", directorios["humano"])
-        return True
-        timeline_humano = self.sc.textFile(directorios["humano"])
-        sqlcontext = SQLContext(self.sc)
+
+        timeline = self.sc.textFile(directorio)
+
         logger.info("Cargando timelines...")
-        self.df = sqlcontext.jsonRDD(timeline_humano).cache()
+        self.df = self.sqlcontext.jsonRDD(timeline).cache()
         self.df.repartition(self.df.user.id)
 
-        self.tweets_RDD = self.df.map(lambda t: (t.user.id, (
-            t.user.id,
-            t.user.screen_name,
-            t.id,
-            t.text,
-            t.entities,
-            t.is_quote_status,
-            t.in_reply_to_status_id,
-            t.favorite_count,
-            t.source,
-            t.retweet_count,
-            t.geo,
-            t.lang,
-            t.created_at,
-            t.place)))
+        self.tweets_RDD = tools.tweets_rdd(self.df)
 
-        self.usuarios_RDD = self.df.map(lambda t: (t.user.id, (
-            t.user.id,  # 0
-            t.user.default_profile_image,  # 1
-            t.user.followers_count,  # 2
-            t.user.friends_count,  # 3
-            t.user.verified,  # 4
-            t.user.listed_count,  # 5
-            t.user.statuses_count,  # 6
-            t.user.geo_enabled,  # 7
-            t.user.screen_name,  # 8
-            t.user.lang,  # 9
-            t.user.favourites_count,  # 10
-            t.user.created_at,  # 11
-            t.user.default_profile,  # 12
-            t.user.is_translator,  # 13
-            t.user.contributors_enabled,  # 14
-            t.user.is_translation_enabled,  # 15
-            t.user.description,  # 16
-            t.user.profile_use_background_image,  # 17
-            t.user.profile_background_tile,  # 18
-            t.user.profile_link_color,  # 19
-            t.user.profile_sidebar_border_color,  # 20
-            t.user.profile_background_color,  # 21
-            t.user.has_extended_profile,  # 22
-            t.user.profile_text_color,  # 23
-            t.user.location,  # 24
-            t.user.url))).distinct()  # 25
+        self.usuarios_RDD = tools.usuario_rdd(self.df)
+
+        logger.info("Calculo de features en tweetsRDD...")
+
+        tweets_features = tools.tweets_features(self.tweets_RDD, self.sqlcontext)
+
+        logger.info("Calculo de features en usuariosRDD...")
+
+        usuarios_features = tools.usuarios_features(self.usuarios_RDD)
+
+        logger.info("Realizando Join...")
+
+        set_datos = usuarios_features.join(tweets_features, tweets_features.user_id == usuarios_features.user_id).map(
+            lambda t: (t.user_id, (
+                t.ano_registro,
+                t.con_descripcion,
+                t.con_geo_activo,
+                t.con_imagen_default,
+                t.con_imagen_fondo,
+                t.con_perfil_verificado,
+                t.followers_ratio,
+                t.n_favoritos,
+                t.n_listas,
+                t.n_tweets,
+                t.reputacion,
+                t.url_ratio,
+                t.avg_diversidad,
+                t.avg_palabras,
+                t.mention_ratio,
+                t.avg_hashtags,
+                t.reply_ratio,
+                t.avg_long_tweets,
+                t.avg_diversidad_lex,
+                t.Mon,
+                t.Tue,
+                t.Wed,
+                t.Thu,
+                t.Fri,
+                t.Sat,
+                t.Sun,
+                t.h0,
+                t.h1,
+                t.h2,
+                t.h3,
+                t.h4,
+                t.h5,
+                t.h6,
+                t.h7,
+                t.h8,
+                t.h9,
+                t.h10,
+                t.h11,
+                t.h12,
+                t.h13,
+                t.h14,
+                t.h15,
+                t.h16,
+                t.h17,
+                t.h18,
+                t.h19,
+                t.h20,
+                t.h21,
+                t.h22,
+                t.h23,
+                t.web,
+                t.mobil,
+                t.terceros)))
+
+        logger.info("Finalizando...")
+
+        return set_datos.collect()
 
     def cantidad_tweets(self):
         """Contar la cantidad de tweets en
@@ -132,7 +155,7 @@ class MotorClasificador:
                 tweets.
                 :return: RDD (id, lexical_diversity, ntweets) [(187698476, (306.0745307679238, 999))
         """
-        return self.tweets_RDD.map(lambda t: (t[1][0], lexical_diversity(t[1][4]))).combineByKey(
+        return self.tweets_RDD.map(lambda t: (t[1][0], tools.lexical_diversity(t[1][4]))).combineByKey(
             lambda value: (value, 1),
             lambda x, value: (x[0] + value, x[1] + 1),
             lambda x, y: (x[0] + y[0], x[1] + y[1]))
@@ -150,7 +173,7 @@ class MotorClasificador:
                 en su timeline
         :return: RDD cantidad de replys por ratio (id_user,n_replys)
         """
-        return self.tweets_RDD.map(lambda t: (t[1][0], not_none(t[1][7]))).reduceByKey(lambda a, b: a + b)
+        # return self.tweets_RDD.map(lambda t: (t[1][0], not_none(t[1][7]))).reduceByKey(lambda a, b: a + b)
 
     def __sum_count_reply(self):
         """ Cuenta la cantidad de replys y tweets totales por
@@ -158,10 +181,10 @@ class MotorClasificador:
         :return: RDD con la cantidad de replys y el total de tweets
         EJEMPLO: (id, n_replys, n_tweets) [(187698476, (30, 999))
         """
-        return self.tweets_RDD.map(lambda t: (t[1][0], not_none(t[1][7]))).combineByKey(
+        """return self.tweets_RDD.map(lambda t: (t[1][0], not_none(t[1][7]))).combineByKey(
             lambda value: (value, 1),
             lambda x, value: (x[0] + value, x[1] + 1),
-            lambda x, y: (x[0] + y[0], x[1] + y[1]))
+            lambda x, y: (x[0] + y[0], x[1] + y[1]))"""
 
     def reply_ratio(self):
         """ Promedio de replys en el timeline
