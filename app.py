@@ -16,34 +16,34 @@ logger = logging.getLogger(__name__)
 def carga_inicial():
     directorio = request.json.get("directorio")
     logger.debug("Iniciando carga inicial sobre la carpeta: %s", directorio)
-    r = motor_clasificador.carga_inicial(directorio)
-    return json.dumps(dict(resultado=r))
+    resultado = motor_clasificador.carga_inicial(directorio)
+    return json.dumps(dict(resultado=resultado))
 
 
 @main.route("/cargar_modelo/", methods=["POST"])
 # TODO: Cargar modelo para el arbol (requiere de los 6000)
 def cargar_modelo():
-    """Realiza la carga inicial y el entrenamiento del modelo.
+    """Realiza la carga del set de entrenamiento y genera el modelo.
     Requiere de la especificacion de los directorios para las 3 categorias.
     EJEMPLO: {"bot":"/carpeta/con/bots","humano":"/carpeta/con/humano/","ciborg":"/carpeta/con/ciborg/"}
     """
     logger.debug("Iniciando carga inicial...")
-    contenido = request.json
-    logging.info(contenido)
-    if not contenido["bot"]:
+    directorio = request.json
+    logging.info(directorio)
+    if not directorio["bot"]:
         logging.info("No se especifico la direccion de la carpeta para los bots")
         return json.dumps(dict(exito=False))
-    if not contenido["humano"]:
+    if not directorio["humano"]:
         logging.info("No se especifico la direccion de la carpeta para los humanos")
         return json.dumps(dict(exito=False))
-    if not contenido["ciborg"]:
+    if not directorio["ciborg"]:
         logging.info("No se especifico la direccion de la carpeta para los ciborgs")
         return json.dumps(dict(exito=False))
 
-    logger.debug("Ejecutando carga inicial")
-    #motor_clasificador.modelo = motor_clasificador.cargar_modelo(contenido)
-    logger.debug("Finalizando carga inicial")
-    return json.dumps(dict(exito=True))
+    logger.debug("Ejecutando carga y entrenamiento")
+    resultado = motor_clasificador.cargar_modelo(directorio)
+    logger.debug("Finalizando carga y entrenamiento")
+    return json.dumps(dict(exito=resultado))
 
 
 @main.route("/tweets", methods=["GET"])

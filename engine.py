@@ -1,6 +1,8 @@
 import os
 from pyspark.sql import SQLContext, Row
 import logging, tools
+from pyspark.mllib.regression import LabeledPoint
+from pyspark.mllib.tree import RandomForest, RandomForestModel
 from dateutil import parser
 from pyspark.mllib.util import MLUtils
 
@@ -108,8 +110,126 @@ class MotorClasificador:
                 t.terceros)))
 
         logger.info("Finalizando...")
+        # TODO guardar resultado en alguna parte
+        return True
+
+    def cargar_modelo(self, directorio):
+
+        timeline_humanos = self.sc.textFile(directorio["humano"])
+        timeline_bots = self.sc.textFile(directorio["bot"])
+        timeline_ciborgs = self.sc.textFile(directorio["ciborg"])
+
+        logger.info("Cargando timelines...")
+        df_humanos = self.sqlcontext.jsonRDD(timeline_humanos)
+        df_humanos.repartition(df_humanos.user.id)
+
+        df_bots = self.sqlcontext.jsonRDD(timeline_bots)
+        df_bots.repartition(df_bots.user.id)
+
+        df_ciborgs = self.sqlcontext.jsonRDD(timeline_ciborgs)
+        df_ciborgs.repartition(df_ciborgs.user.id)
+
+        tweets_RDD_humanos = tools.tweets_rdd(df_humanos)
+        tweets_RDD_bots = tools.tweets_rdd(df_bots)
+        tweets_RDD_ciborgs = tools.tweets_rdd(df_ciborgs)
+
+        usuarios_RDD_humanos = tools.usuario_rdd(df_humanos)
+        usuarios_RDD_bots = tools.usuario_rdd(df_bots)
+        usuarios_RDD_ciborgs = tools.usuario_rdd(df_ciborgs)
+
+        logger.info("Calculo de features en tweetsRDD_humanos...")
+        tweets_features_humanos = tools.tweets_features(tweets_RDD_humanos, self.sqlcontext)
+
+        logger.info("Calculo de features en tweetsRDD_bots...")
+        tweets_features_bots = tools.tweets_features(tweets_RDD_bots, self.sqlcontext)
+
+        logger.info("Calculo de features en tweetsRDD_ciborgs...")
+        tweets_features_ciborgs = tools.tweets_features(tweets_RDD_ciborgs, self.sqlcontext)
+
+        logger.info("Calculo de features en usuariosRDD_humanos...")
+        usuarios_features_humanos = tools.usuarios_features(usuarios_RDD_humanos, 0)
+
+        logger.info("Calculo de features en usuariosRDD_bots...")
+        usuarios_features_bots = tools.usuarios_features(usuarios_RDD_bots, 1)
+
+        logger.info("Calculo de features en usuariosRDD_ciborgs...")
+        usuarios_features_ciborgs = tools.usuarios_features(usuarios_RDD_ciborgs, 2)
+
+        logger.info("Realizando Union...")
+
+        usuarios = usuarios_features_ciborgs.unionAll(usuarios_features_bots)
+        usuarios = usuarios.unionAll(usuarios_features_humanos)
+        # usuarios.cache()
+
+        tweets = tweets_features_ciborgs.unionAll(tweets_features_bots)
+        tweets = tweets.unionAll(tweets_features_humanos)
+
+        logger.info("Realizando Join...")
+
+        set_datos = usuarios.join(tweets, tweets.user_id == usuarios.user_id).map(
+            lambda t: (t.user_id, (
+                t.categoria,
+                t.ano_registro,
+                t.con_descripcion,
+                t.con_geo_activo,
+                t.con_imagen_default,
+                t.con_imagen_fondo,
+                t.con_perfil_verificado,
+                t.followers_ratio,
+                t.n_favoritos,
+                t.n_listas,
+                t.n_tweets,
+                t.reputacion,
+                t.url_ratio,
+                t.avg_diversidad,
+                t.avg_palabras,
+                t.mention_ratio,
+                t.avg_hashtags,
+                t.reply_ratio,
+                t.avg_long_tweets,
+                t.avg_diversidad_lex,
+                t.Mon,
+                t.Tue,
+                t.Wed,
+                t.Thu,
+                t.Fri,
+                t.Sat,
+                t.Sun,
+                t.h0,
+                t.h1,
+                t.h2,
+                t.h3,
+                t.h4,
+                t.h5,
+                t.h6,
+                t.h7,
+                t.h8,
+                t.h9,
+                t.h10,
+                t.h11,
+                t.h12,
+                t.h13,
+                t.h14,
+                t.h15,
+                t.h16,
+                t.h17,
+                t.h18,
+                t.h19,
+                t.h20,
+                t.h21,
+                t.h22,
+                t.h23,
+                t.web,
+                t.mobil,
+                t.terceros)))
+
+        # TODO generar modelo
+        logger.info("Finalizando...")
 
         return set_datos.collect()
+
+
+
 
     def cantidad_tweets(self):
         """Contar la cantidad de tweets en
