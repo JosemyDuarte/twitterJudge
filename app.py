@@ -21,7 +21,6 @@ def carga_inicial():
 
 
 @main.route("/cargar_modelo/", methods=["POST"])
-# TODO: Cargar modelo para el arbol (requiere de los 6000)
 def cargar_modelo():
     """Realiza la carga del set de entrenamiento y genera el modelo.
     Requiere de la especificacion de los directorios para las 3 categorias.
@@ -32,25 +31,18 @@ def cargar_modelo():
     logging.info(directorio)
     if not directorio["bot"]:
         logging.info("No se especifico la direccion de la carpeta para los bots")
-        return json.dumps(dict(exito=False))
+        return json.dumps(dict(resultado=False))
     if not directorio["humano"]:
         logging.info("No se especifico la direccion de la carpeta para los humanos")
-        return json.dumps(dict(exito=False))
+        return json.dumps(dict(resultado=False))
     if not directorio["ciborg"]:
         logging.info("No se especifico la direccion de la carpeta para los ciborgs")
-        return json.dumps(dict(exito=False))
+        return json.dumps(dict(resultado=False))
 
     logger.debug("Ejecutando carga y entrenamiento")
     resultado = motor_clasificador.cargar_modelo(directorio)
     logger.debug("Finalizando carga y entrenamiento")
-    return json.dumps(dict(exito=resultado))
-
-
-@main.route("/tweets", methods=["GET"])
-def cantidad_tweets():
-    logger.debug("Obteniendo cantidad de tweets en base de conocimiento")
-    n = motor_clasificador.cantidad_tweets()
-    return json.dumps({"cantidad_tweets": n})
+    return json.dumps(dict(resultado=resultado))
 
 
 def create_app(spark_context):

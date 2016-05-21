@@ -424,3 +424,19 @@ def usuarios_features(usuarios, categoria=-1):
                                                     categoria=categoria)).toDF()
 
     return _usuarios_features
+
+"""
+def cargar_timeline(timeline, sqlcontext):
+
+    _df = sqlcontext.jsonRDD(timeline)
+    _df.repartition(_df.user.id)
+
+    tweets_RDD = tweets_rdd(_df)
+
+    usuarios_RDD = usuario_rdd(_df)
+
+    # logger.info("Calculo de features en tweetsRDD_humanos...")
+    _tweets_features = tweets_features(tweets_RDD, sqlcontext)
+
+    # logger.info("Calculo de features en usuariosRDD_humanos...")
+    _usuarios_features = usuarios_features(usuarios_RDD, 0)"""
