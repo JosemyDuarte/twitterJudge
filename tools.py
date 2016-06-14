@@ -1,9 +1,13 @@
 from __future__ import division
-from pyspark.sql import Row
+from pyspark.sql import SQLContext, Row
 from dateutil import parser
 import os
+import logging
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+#logging.basicConfig(filename="logs/engine.log", format='%(levelname)s:%(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def lexical_diversity(text):
@@ -337,55 +341,56 @@ def url_ratio(tweets):
 
     return _url_ratio
 
-
+# TODO falta SPAM y entropia, diversidad url
 def tweets_features(tweets_RDD, sqlcontext):
 
-    tweets_RDD.persist()
-    #logger.info("Iniciando calculo de tweets por dia...")
+    logger.info("Calculando features para tweets...")
+
+    logger.info("Iniciando calculo de tweets por dia...")
 
     _tweets_x_dia = tweets_x_dia(tweets_RDD)
 
-    #logger.info("Iniciando calculo de tweets por hora...")
+    logger.info("Iniciando calculo de tweets por hora...")
 
     _tweets_x_hora = tweets_x_hora(tweets_RDD)
 
-  #  logger.info("Iniciando exploracion de las fuentes de los tweets...")
+    logger.info("Iniciando exploracion de las fuentes de los tweets...")
 
     _fuentes_usuario = fuentes_usuario(tweets_RDD)
 
-   # logger.info("Iniciando calculo de diversidad lexicografica...")
+    logger.info("Iniciando calculo de diversidad lexicografica...")
 
     _avg_diversidad_lexicografica = avg_diversidad_lexicografica(tweets_RDD)
 
-    #logger.info("Iniciando calculo del promedio de la longuitud de los tweets...")
+    logger.info("Iniciando calculo del promedio de la longuitud de los tweets...")
 
     _avg_long_tweets_x_usuario = avg_long_tweets_x_usuario(tweets_RDD)
 
-    #logger.info("Iniciando calculo del ratio de respuestas...")
+    logger.info("Iniciando calculo del ratio de respuestas...")
 
     _reply_ratio = reply_ratio(tweets_RDD)
 
-    #logger.info("Iniciando calculo del promedio de los hashtags...")
+    logger.info("Iniciando calculo del promedio de los hashtags...")
 
     _avg_hashtags = avg_hashtags(tweets_RDD)
 
-    #logger.info("Iniciando calculo del promedio de menciones...")
+    logger.info("Iniciando calculo del promedio de menciones...")
 
     _mention_ratio = mention_ratio(tweets_RDD)
 
-    #logger.info("Iniciando calculo del promedio de palabras por tweet...")
+    logger.info("Iniciando calculo del promedio de palabras por tweet...")
 
     _avg_palabras = avg_palabras(tweets_RDD)
 
-    #logger.info("Iniciando calculo del promedio de diversidad de palabras...")
+    logger.info("Iniciando calculo del promedio de diversidad de palabras...")
 
     _avg_diversidad = avg_diversidad(tweets_RDD)
 
-    #logger.info("Iniciando calculo del ratio de urls...")
+    logger.info("Iniciando calculo del ratio de urls...")
 
     _url_ratio = url_ratio(tweets_RDD)
 
-    #logger.info("Registrando tablas...")
+    logger.info("Registrando tablas...")
     # TODO falta tabla con entropias
     _url_ratio.registerTempTable("url_ratio")
     _avg_diversidad.registerTempTable("avg_diversidad")
@@ -399,7 +404,7 @@ def tweets_features(tweets_RDD, sqlcontext):
     _tweets_x_hora.registerTempTable("tweets_x_hora")
     _fuentes_usuario.registerTempTable("fuentes_usuario")
 
-    #logger.info("Join entre tweets...")
+    logger.info("Join entre tweets...")
 
     _tweets_features = sqlcontext.sql(
     "select url_ratio.user_id, url_ratio, avg_diversidad, avg_palabras, mention_ratio, avg_hashtags, reply_ratio, avg_long_tweets, avg_diversidad_lex, Mon,Fri,Sat,Sun,Thu,Tue,Wed, `00` as h0,`01` as h1,`02` as h2,`03` as h3,`04` as h4,`05` as h5,`06` as h6,`07` as h7,`08` as h8,`09` as h9,`10` as h10,`11` as h11,`12` as h12,`13` as h13,`14` as h14,`15` as h15,`16` as h16,`17` as h17,`18` as h18,`19` as h19,`20` as h20,`21` as h21, `22` as h22, `23` as h23, mobil,terceros,web from url_ratio, avg_diversidad, avg_palabras, mention_ratio, avg_hashtags, reply_ratio, avg_long_tweets, avg_diversidad_lex, tweets_x_dia, tweets_x_hora, fuentes_usuario where url_ratio.user_id=avg_diversidad.user_id and avg_diversidad.user_id=avg_palabras.user_id and avg_palabras.user_id=mention_ratio.user_id and mention_ratio.user_id=avg_hashtags.user_id and avg_hashtags.user_id=reply_ratio.user_id and reply_ratio.user_id=avg_long_tweets.user_id and avg_long_tweets.user_id=avg_diversidad_lex.user_id and avg_diversidad_lex.user_id=tweets_x_dia.user_id and tweets_x_dia.user_id=tweets_x_hora.user_id and tweets_x_hora.user_id=fuentes_usuario.user_id")
@@ -408,6 +413,7 @@ def tweets_features(tweets_RDD, sqlcontext):
 
 
 def usuarios_features(usuarios, categoria=-1):
+    logger.info("Calculando features para usuarios...")
     _usuarios_features = usuarios.map(lambda t: Row(user_id=t[0],
                                                     con_imagen_fondo=(1 if t[1][17] == True else 0),
                                                     ano_registro=int(parser.parse(t[1][11]).strftime('%Y')),
@@ -425,18 +431,83 @@ def usuarios_features(usuarios, categoria=-1):
 
     return _usuarios_features
 
-"""
-def cargar_timeline(timeline, sqlcontext):
 
-    _df = sqlcontext.jsonRDD(timeline)
-    _df.repartition(_df.user.id)
+def timeline_features(sc, directorio):
 
-    tweets_RDD = tweets_rdd(_df)
+        timeline = sc.textFile(directorio)
+        sqlcontext = SQLContext(sc)
 
-    usuarios_RDD = usuario_rdd(_df)
+        logger.info("Cargando arhcivos...")
+        df = sqlcontext.jsonRDD(timeline)
+        df.repartition(df.user.id)
 
-    # logger.info("Calculo de features en tweetsRDD_humanos...")
-    _tweets_features = tweets_features(tweets_RDD, sqlcontext)
+        tweets_RDD = tweets_rdd(df)
 
-    # logger.info("Calculo de features en usuariosRDD_humanos...")
-    _usuarios_features = usuarios_features(usuarios_RDD, 0)"""
+        usuarios_RDD = usuario_rdd(df)
+
+        _tweets_features = tweets_features(tweets_RDD, sqlcontext)
+
+        _usuarios_features = usuarios_features(usuarios_RDD)
+
+        logger.info("Realizando join de usuarios con tweets...")
+
+        set_datos = _usuarios_features.join(_tweets_features, _tweets_features.user_id == _usuarios_features.user_id).map(
+            lambda t: (t.user_id, (
+                t.ano_registro,
+                t.con_descripcion,
+                t.con_geo_activo,
+                t.con_imagen_default,
+                t.con_imagen_fondo,
+                t.con_perfil_verificado,
+                t.followers_ratio,
+                t.n_favoritos,
+                t.n_listas,
+                t.n_tweets,
+                t.reputacion,
+                t.url_ratio,
+                t.avg_diversidad,
+                t.avg_palabras,
+                t.mention_ratio,
+                t.avg_hashtags,
+                t.reply_ratio,
+                t.avg_long_tweets,
+                t.avg_diversidad_lex,
+                t.Mon,
+                t.Tue,
+                t.Wed,
+                t.Thu,
+                t.Fri,
+                t.Sat,
+                t.Sun,
+                t.h0,
+                t.h1,
+                t.h2,
+                t.h3,
+                t.h4,
+                t.h5,
+                t.h6,
+                t.h7,
+                t.h8,
+                t.h9,
+                t.h10,
+                t.h11,
+                t.h12,
+                t.h13,
+                t.h14,
+                t.h15,
+                t.h16,
+                t.h17,
+                t.h18,
+                t.h19,
+                t.h20,
+                t.h21,
+                t.h22,
+                t.h23,
+                t.web,
+                t.mobil,
+                t.terceros)))
+
+        logger.info("Finalizado el join...")
+
+        return set_datos
+

@@ -8,7 +8,7 @@ from pyspark.mllib.util import MLUtils
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-logging.basicConfig(filename="logs/engine.log", format='%(levelname)s:%(message)s', level=logging.INFO)
+#logging.basicConfig(filename="logs/engine.log", format='%(levelname)s:%(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # TODO cambiar direcciones absolutas para que trabajen con HDFS
@@ -21,113 +21,38 @@ class MotorClasificador:
         """
 
         self.sc = sc
-        self.df = None
-        self.tweets_RDD = None
-        self.usuarios_RDD = None
-        self.modelo = None
-        self.sqlcontext = SQLContext(self.sc)
+        self.modelo_juez = None
+        self.modelo_spam = None
         logger.info("Calentando motores...")
 
     def carga_inicial(self, directorio):
         """Realiza la carga de los usuarios y guarda sus features
         """
-
-        timeline = self.sc.textFile(directorio)
-
-        logger.info("Cargando timelines...")
-        self.df = self.sqlcontext.jsonRDD(timeline).cache()
-        self.df.repartition(self.df.user.id)
-
-        self.tweets_RDD = tools.tweets_rdd(self.df)
-
-        self.usuarios_RDD = tools.usuario_rdd(self.df)
-
-        logger.info("Calculo de features en tweetsRDD...")
-
-        tweets_features = tools.tweets_features(self.tweets_RDD, self.sqlcontext)
-
-        logger.info("Calculo de features en usuariosRDD...")
-
-        usuarios_features = tools.usuarios_features(self.usuarios_RDD)
-
-        logger.info("Realizando Join...")
-
-        set_datos = usuarios_features.join(tweets_features, tweets_features.user_id == usuarios_features.user_id).map(
-            lambda t: (t.user_id, (
-                t.ano_registro,
-                t.con_descripcion,
-                t.con_geo_activo,
-                t.con_imagen_default,
-                t.con_imagen_fondo,
-                t.con_perfil_verificado,
-                t.followers_ratio,
-                t.n_favoritos,
-                t.n_listas,
-                t.n_tweets,
-                t.reputacion,
-                t.url_ratio,
-                t.avg_diversidad,
-                t.avg_palabras,
-                t.mention_ratio,
-                t.avg_hashtags,
-                t.reply_ratio,
-                t.avg_long_tweets,
-                t.avg_diversidad_lex,
-                t.Mon,
-                t.Tue,
-                t.Wed,
-                t.Thu,
-                t.Fri,
-                t.Sat,
-                t.Sun,
-                t.h0,
-                t.h1,
-                t.h2,
-                t.h3,
-                t.h4,
-                t.h5,
-                t.h6,
-                t.h7,
-                t.h8,
-                t.h9,
-                t.h10,
-                t.h11,
-                t.h12,
-                t.h13,
-                t.h14,
-                t.h15,
-                t.h16,
-                t.h17,
-                t.h18,
-                t.h19,
-                t.h20,
-                t.h21,
-                t.h22,
-                t.h23,
-                t.web,
-                t.mobil,
-                t.terceros)))
-
-        logger.info("Finalizando...")
-
+        sc = self.sc
+        set_datos = tools.timeline_features(sc, directorio)
+        #TODO definir carpeta donde almacenar el resultado
+        logger.info("Guardando resultados...")
         set_datos.saveAsPickleFile("/home/jduarte/Workspace/datos/TIMELINES_PROCESADOS", 10)
+
         return True
 
+
     # TODO se pueden pasar parametro del modelo a esta funcion
-    def cargar_modelo(self, directorio):
+    def entrenar_juez(self, directorio):
+        sc = self.sc
+        sqlcontext = SQLContext(sc)
+        timeline_humanos = sc.textFile(directorio["humano"])
+        timeline_bots = sc.textFile(directorio["bot"])
+        timeline_ciborgs = sc.textFile(directorio["ciborg"])
 
-        timeline_humanos = self.sc.textFile(directorio["humano"])
-        timeline_bots = self.sc.textFile(directorio["bot"])
-        timeline_ciborgs = self.sc.textFile(directorio["ciborg"])
-
-        logger.info("Cargando timelines...")
-        df_humanos = self.sqlcontext.jsonRDD(timeline_humanos)
+        logger.info("Cargando archivos...")
+        df_humanos = sqlcontext.jsonRDD(timeline_humanos)
         df_humanos.repartition(df_humanos.user.id)
 
-        df_bots = self.sqlcontext.jsonRDD(timeline_bots)
+        df_bots = sqlcontext.jsonRDD(timeline_bots)
         df_bots.repartition(df_bots.user.id)
 
-        df_ciborgs = self.sqlcontext.jsonRDD(timeline_ciborgs)
+        df_ciborgs = sqlcontext.jsonRDD(timeline_ciborgs)
         df_ciborgs.repartition(df_ciborgs.user.id)
 
         tweets_RDD_humanos = tools.tweets_rdd(df_humanos)
@@ -139,13 +64,13 @@ class MotorClasificador:
         usuarios_RDD_ciborgs = tools.usuario_rdd(df_ciborgs)
 
         logger.info("Calculo de features en tweetsRDD_humanos...")
-        tweets_features_humanos = tools.tweets_features(tweets_RDD_humanos, self.sqlcontext)
+        tweets_features_humanos = tools.tweets_features(tweets_RDD_humanos, sqlcontext)
 
         logger.info("Calculo de features en tweetsRDD_bots...")
-        tweets_features_bots = tools.tweets_features(tweets_RDD_bots, self.sqlcontext)
+        tweets_features_bots = tools.tweets_features(tweets_RDD_bots, sqlcontext)
 
         logger.info("Calculo de features en tweetsRDD_ciborgs...")
-        tweets_features_ciborgs = tools.tweets_features(tweets_RDD_ciborgs, self.sqlcontext)
+        tweets_features_ciborgs = tools.tweets_features(tweets_RDD_ciborgs, sqlcontext)
 
         logger.info("Calculo de features en usuariosRDD_humanos...")
         usuarios_features_humanos = tools.usuarios_features(usuarios_RDD_humanos, 0)
@@ -227,17 +152,39 @@ class MotorClasificador:
 
         (trainingData, testData) = labeledPoint.randomSplit([0.7, 0.3])
 
-        self.modelo = RandomForest.trainRegressor(trainingData, categoricalFeaturesInfo={},
-                                                  numTrees=3, featureSubsetStrategy="auto",
-                                                  impurity='variance', maxDepth=4, maxBins=32)
+        logger.info("Entrenando juez...")
+        modelo = RandomForest.trainRegressor(trainingData, categoricalFeaturesInfo={},
+                                    numTrees=100, featureSubsetStrategy="auto",
+                                    impurity='variance', maxDepth=30, maxBins=32)
 
-        # Evaluate model on test instances and compute test error
-        predictions = self.modelo.predict(testData.map(lambda x: x.features))
+
+        predictions = modelo.predict(testData.map(lambda x: x.features))
         labelsAndPredictions = testData.map(lambda lp: lp.label).zip(predictions)
-        testMSE = labelsAndPredictions.map(lambda v_p: (v_p[0] - v_p[1]) * (v_p[0] - v_p[1])).sum() / \
-                  float(testData.count())
+        testMSE = labelsAndPredictions.map(lambda v_p: (v_p[0] - v_p[1]) * (v_p[0] - v_p[1])).sum() /\
+    float(testData.count())
+
+        logger.info("Guardando modelo...")
+
+        modelo.save(sc, "/home/jduarte/Workspace/datos/modelo_juez")
+
+        self.modelo_juez = modelo
 
         logger.info("Finalizando...")
 
         return testMSE
+
+    def cargar_juez(self, directorio):
+        self.modelo_juez = RandomForestModel.load(self.sc, directorio)
+        return True
+
+    def evaluar(self, dir_timeline):
+        sc = self.sc
+        modelo = self.modelo_juez
+        features = tools.timeline_features(sc, dir_timeline)
+        resultado = modelo.predict(features.map(lambda t: t[1])).collect()
+        logger.info(resultado)
+        return resultado, features
+
+
+
 
