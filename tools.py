@@ -3,6 +3,12 @@ from pyspark.sql import SQLContext, Row
 from dateutil import parser
 import os
 import logging
+import json
+import numpy as np
+import CCE
+import requests
+import urlparse
+from pyspark.mllib.feature import HashingTF
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -341,7 +347,74 @@ def url_ratio(tweets):
 
     return _url_ratio
 
-# TODO falta SPAM y entropia, diversidad url
+
+def spam_or_not(juez, tweets):
+    tf = HashingTF(numFeatures=100)
+    prediccion = juez.predict(tweets.map(lambda t: tf.transform(t[1][3].split(" "))))
+    idYPrediccion = tweets.map(lambda t: t[0]).zip(prediccion)
+    return idYPrediccion
+
+
+def get_final_url(url):
+    try:
+        resultado = requests.get(url, timeout=10)
+        if resultado.status_code >= 400:
+            return str(resultado.status_code)
+        else:
+            return urlparse.urldefrag(resultado.url)[0]
+    except Exception:
+        return "600"
+
+
+def diversidad_urls(urls):
+    resultado_urls = []
+    hosts = []
+    diversidad_url = 0
+    n_urls = 0
+    logger.debug("Iniciando proceso para %s urls", str(len(urls)))
+    for _url in urls:
+        for url in _url:
+            logger.debug("Obteniendo redireccion final de url %s", str(url["expanded_url"]))
+            finalurl = get_final_url(url["expanded_url"])
+            logger.debug("ANTES: %s RESULTADO: %s", str(url["expanded_url"]), str(finalurl))
+            if not finalurl.isdigit():
+                resultado_urls.append(finalurl)
+                hosts.append(urlparse.urlparse(finalurl).netloc)
+                n_urls += 1
+    if n_urls != 0:
+        diversidad_url = len(set(hosts)) / n_urls
+    return diversidad_url
+
+
+def intertweet_urls(directorio):
+    lista_intertweet = []
+    lista_urls = []
+    i = 0
+    with open(directorio) as timeline:
+        lines = timeline.readlines()
+        if json.loads(lines[0]) and len(lines) > 100:
+            while i + 1 != len(lines) and i < 110:
+                tweet = (json.loads(lines[i]), json.loads(lines[i + 1]))
+                i += 1
+                if i <= 110:
+                    date = (parser.parse(tweet[0]['created_at']), parser.parse(tweet[1]['created_at']))
+                    lista_intertweet.append(abs((date[1] - date[0]).total_seconds()))
+                if tweet[0]['entities']['urls'] and tweet[0]['entities']['urls'][0]:
+                    lista_urls.append(tweet[0]['entities']['urls'])
+    return json.dumps(dict(intertweet_delay=lista_intertweet, user_id=json.loads(lines[0])["user"]["id"], urls=lista_urls))
+
+
+def entropia_urls(directorio, urls=False):
+    data = intertweet_urls(directorio)
+    entropia = CCE.correc_cond_en(data["intertweet_delay"], len(data["intertweet_delay"]),
+                                   int(np.ceil(np.log2(max(data["intertweet_delay"])))))
+    if urls:
+        diversidad = diversidad_urls(data["urls"])
+        return entropia, diversidad
+    return entropia
+
+
+ #TODO falta SPAM y entropia, diversidad url
 def tweets_features(tweets_RDD, sqlcontext):
 
     logger.info("Calculando features para tweets...")
@@ -391,7 +464,7 @@ def tweets_features(tweets_RDD, sqlcontext):
     _url_ratio = url_ratio(tweets_RDD)
 
     logger.info("Registrando tablas...")
-    # TODO falta tabla con entropias
+
     _url_ratio.registerTempTable("url_ratio")
     _avg_diversidad.registerTempTable("avg_diversidad")
     _avg_palabras.registerTempTable("avg_palabras")
@@ -423,10 +496,9 @@ def usuarios_features(usuarios, categoria=-1):
                                                     con_imagen_default=(1 if t[1][1] == True else 0),
                                                     n_listas=t[1][5],
                                                     con_geo_activo=(1 if t[1][7] == True else 0),
-                                                    reputacion=float(
-                                                        float(t[1][2]) / (float(t[1][2]) + float(t[1][3]))),
+                                                    reputacion=(t[1][2]/(t[1][2] + t[1][3]) if t[1][2] or t[1][3] or (t[1][2] + t[1][3] > 0) else 0),
                                                     n_tweets=t[1][6],
-                                                    followers_ratio=float(float(t[1][2]) / float(t[1][3])),
+                                                    followers_ratio=(t[1][2] / t[1][3] if t[1][3] > 0 else 0),
                                                     categoria=categoria)).toDF()
 
     return _usuarios_features
@@ -505,7 +577,11 @@ def timeline_features(sc, directorio):
                 t.h23,
                 t.web,
                 t.mobil,
-                t.terceros)))
+                t.terceros,
+                0,#Diversidad url
+                0,#Entropia
+                0,#SPAM or not SPAM
+                0))) #Safety url
 
         logger.info("Finalizado el join...")
 

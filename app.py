@@ -12,12 +12,6 @@ main = Blueprint('main', __name__)
 logging.basicConfig(filename="logs/engine.log", format='%(levelname)s:%(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-@main.route("/carga_inicial/", methods=["POST"])
-def carga_inicial():
-    directorio = request.json.get("directorio")
-    logger.debug("Iniciando carga inicial sobre la carpeta: %s", directorio)
-    resultado = motor_clasificador.carga_inicial(directorio)
-    return json.dumps(dict(resultado=resultado))
 
 @main.route("/cargar_juez/", methods=["POST"])
 def cargar_juez():

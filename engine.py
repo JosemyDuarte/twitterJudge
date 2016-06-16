@@ -3,13 +3,13 @@ from pyspark.sql import SQLContext, Row
 import logging, tools
 from pyspark.mllib.regression import LabeledPoint
 from pyspark.mllib.tree import RandomForest, RandomForestModel
-from dateutil import parser
-from pyspark.mllib.util import MLUtils
+from pyspark.mllib.feature import HashingTF
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-#logging.basicConfig(filename="logs/engine.log", format='%(levelname)s:%(message)s', level=logging.INFO)
+# logging.basicConfig(filename="logs/engine.log", format='%(levelname)s:%(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 # TODO cambiar direcciones absolutas para que trabajen con HDFS
 class MotorClasificador:
@@ -23,21 +23,39 @@ class MotorClasificador:
         self.sc = sc
         self.modelo_juez = None
         self.modelo_spam = None
+        self.datos = None
         logger.info("Calentando motores...")
 
-    def carga_inicial(self, directorio):
-        """Realiza la carga de los usuarios y guarda sus features
-        """
+    def entrenar_spam(self, dir_spam, dir_no_spam):
         sc = self.sc
-        set_datos = tools.timeline_features(sc, directorio)
-        #TODO definir carpeta donde almacenar el resultado
-        logger.info("Guardando resultados...")
-        set_datos.saveAsPickleFile("/home/jduarte/Workspace/datos/TIMELINES_PROCESADOS", 10)
+        sqlcontext = SQLContext(sc)
+
+        inputSpam = sc.textFile(dir_spam)
+        inputNoSpam = sc.textFile(dir_no_spam)
+
+        spam = sqlcontext.jsonRDD(inputSpam).map(lambda t: t.text)
+        noSpam = sqlcontext.jsonRDD(inputNoSpam).map(lambda t: t.text)
+
+        tf = HashingTF(numFeatures=100)
+
+        spamFeatures = spam.map(lambda tweet: tf.transform(tweet.split(" ")))
+        noSpamFeatures = noSpam.map(lambda tweet: tf.transform(tweet.split(" ")))
+
+        ejemplosSpam = spamFeatures.map(lambda features: LabeledPoint(1, features))
+        ejemplosNoSpam = noSpamFeatures.map(lambda features: LabeledPoint(0, features))
+
+        trainingData = ejemplosSpam.union(ejemplosNoSpam)
+        trainingData.cache()
+
+        modelo = RandomForest.trainClassifier(trainingData, numClasses=2, categoricalFeaturesInfo={},
+                                              numTrees=3, featureSubsetStrategy="auto",
+                                              impurity='gini', maxDepth=30, maxBins=32)
+
+        self.modelo_spam = modelo
 
         return True
 
-
-    # TODO se pueden pasar parametro del modelo a esta funcion
+    # TODO agregar features faltantes (Spam, safety, diversidad url, entropia)
     def entrenar_juez(self, directorio):
         sc = self.sc
         sqlcontext = SQLContext(sc)
@@ -150,28 +168,21 @@ class MotorClasificador:
                                        t.terceros
                                    ]))
 
-        (trainingData, testData) = labeledPoint.randomSplit([0.7, 0.3])
-
         logger.info("Entrenando juez...")
-        modelo = RandomForest.trainRegressor(trainingData, categoricalFeaturesInfo={},
-                                    numTrees=100, featureSubsetStrategy="auto",
-                                    impurity='variance', maxDepth=30, maxBins=32)
-
-
-        predictions = modelo.predict(testData.map(lambda x: x.features))
-        labelsAndPredictions = testData.map(lambda lp: lp.label).zip(predictions)
-        testMSE = labelsAndPredictions.map(lambda v_p: (v_p[0] - v_p[1]) * (v_p[0] - v_p[1])).sum() /\
-    float(testData.count())
+        modelo = RandomForest.trainRegressor(labeledPoint, categoricalFeaturesInfo={},
+                                             numTrees=100, featureSubsetStrategy="auto",
+                                             impurity='variance', maxDepth=30, maxBins=32)
 
         logger.info("Guardando modelo...")
 
+        # TODO Solicitar direccion en caso de q se quiera almacenar o hacerlo una funcion aparte
         modelo.save(sc, "/home/jduarte/Workspace/datos/modelo_juez")
 
         self.modelo_juez = modelo
 
         logger.info("Finalizando...")
 
-        return testMSE
+        return True
 
     def cargar_juez(self, directorio):
         self.modelo_juez = RandomForestModel.load(self.sc, directorio)
@@ -184,7 +195,3 @@ class MotorClasificador:
         resultado = modelo.predict(features.map(lambda t: t[1])).collect()
         logger.info(resultado)
         return resultado, features
-
-
-
-
