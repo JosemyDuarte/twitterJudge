@@ -8,6 +8,6 @@ setup(
     license='',
     author='Josemy Duarte',
     author_email='',
-    description='Extraer caracteristcas de Timelines', requires=['flask', 'cherrypy', 'paste', 'python-dateutil'],
-    install_requires=['numpy', 'requests', 'json', 'pyopenssl', 'ndg-httpsclient', 'pyasn1']
+    description='Extraer caracteristcas de Timelines', 
+    requires=['flask', 'cherrypy', 'paste', 'python-dateutil'.'numpy','requests','pyopenssl','ndg-httpsclient'],
 )

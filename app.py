@@ -20,14 +20,6 @@ def cargar_juez():
     resultado = motor_clasificador.cargar_juez(directorio)
     return json.dumps(dict(resultado=resultado))
 
-@main.route("/evaluar/", methods=["POST"])
-def evaluar():
-    directorio = request.json.get("directorio")
-    logger.debug("Iniciando evaluacion sobre: %s", directorio)
-    resultado, _ = motor_clasificador.evaluar(directorio)
-    return json.dumps(dict(resultado=resultado))
-
-
 @main.route("/entrenar_juez/", methods=["POST"])
 def entrenar_juez():
     """Realiza la carga del set de entrenamiento y genera el modelo.
@@ -52,6 +44,39 @@ def entrenar_juez():
     logger.debug("Finalizando carga y entrenamiento")
     return json.dumps(dict(resultado=resultado))
 
+@main.route("/entrenar_spam/", methods=["POST"])
+def entrenar_spam():
+    """Realiza la carga del set de entrenamiento y genera el modelo.
+    Requiere de la especificacion de los directorios para las 3 categorias.
+    EJEMPLO: {"spam":"/archivo/spam","no_spam":"/archivo/no_spam/"}
+    """
+    logger.debug("Iniciando carga...")
+    directorio = request.json
+    logging.info(directorio)
+    if not directorio["spam"]:
+        logging.error("No se especifico la direccion del archivo de SPAM")
+        return json.dumps(dict(resultado=False))
+    if not directorio["no_spam"]:
+        logging.error("No se especifico la direccion del archivo de NOSPAM")
+        return json.dumps(dict(resultado=False))
+    logger.debug("Ejecutando carga y entrenamiento")
+    resultado = motor_clasificador.entrenar_spam(directorio["spam"], directorio["no_spam"])
+    logger.debug("Finalizando carga y entrenamiento")
+    return json.dumps(dict(resultado=resultado))
+
+@main.route("/cargar_spam/", methods=["POST"])
+def cargar_spam():
+    directorio = request.json.get("directorio")
+    logger.debug("Cargando juez de spam almacenado en: %s", directorio)
+    resultado = motor_clasificador.cargar_spam(directorio)
+    return json.dumps(dict(resultado=resultado))
+
+@main.route("/evaluar/", methods=["POST"])
+def evaluar():
+    directorio = request.json.get("directorio")
+    logger.debug("Iniciando evaluacion sobre: %s", directorio)
+    resultado, _ = motor_clasificador.evaluar(directorio)
+    return json.dumps(dict(resultado=resultado))
 
 def create_app(spark_context):
     global motor_clasificador

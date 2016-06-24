@@ -12,7 +12,7 @@ from pyspark.mllib.feature import HashingTF
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-#logging.basicConfig(filename="logs/engine.log", format='%(levelname)s:%(message)s', level=logging.INFO)
+# logging.basicConfig(filename="logs/engine.log", format='%(levelname)s:%(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -20,7 +20,7 @@ def lexical_diversity(text):
     if len(text) == 0:
         diversity = 0
     else:
-        diversity = float(len(set(text))) / len(text)
+        diversity = float(len(set(text))) / float(len(text))
     return diversity
 
 
@@ -348,11 +348,21 @@ def url_ratio(tweets):
     return _url_ratio
 
 
-def spam_or_not(juez, tweets):
-    tf = HashingTF(numFeatures=100)
-    prediccion = juez.predict(tweets.map(lambda t: tf.transform(t[1][3].split(" "))))
-    idYPrediccion = tweets.map(lambda t: t[0]).zip(prediccion)
-    return idYPrediccion
+def avg_spam(juez, tweets):
+    tf = HashingTF(numFeatures=200)
+
+    text_tweets = tweets.mapValues(lambda tweet: Row(features=tf.transform(tweet[3].split(" "))))
+
+    predictions = juez.predict(text_tweets.map(lambda t: t[1].features))
+
+    ids_predictions = text_tweets.map(lambda t: t[0]).zip(predictions)
+
+    _avg_spam = ids_predictions.combineByKey(lambda value: (value, 1), lambda x, value: (x[0] + value, x[1] + 1),
+                                             lambda x, y: (x[0] + y[0], x[1] + y[1])).map(
+        lambda label_value: Row(user_id=label_value[0],
+                                avg_spam=float(float(label_value[1][0]) / float(label_value[1][1])))).toDF().repartition("user_id")
+
+    return _avg_spam
 
 
 def get_final_url(url):
@@ -401,21 +411,25 @@ def intertweet_urls(directorio):
                     lista_intertweet.append(abs((date[1] - date[0]).total_seconds()))
                 if tweet[0]['entities']['urls'] and tweet[0]['entities']['urls'][0]:
                     lista_urls.append(tweet[0]['entities']['urls'])
-    return json.dumps(dict(intertweet_delay=lista_intertweet, user_id=json.loads(lines[0])["user"]["id"], urls=lista_urls))
+    return json.dumps(
+        dict(intertweet_delay=lista_intertweet, user_id=json.loads(lines[0])["user"]["id"], urls=lista_urls))
 
 
 def entropia_urls(directorio, urls=False):
     data = intertweet_urls(directorio)
     entropia = CCE.correc_cond_en(data["intertweet_delay"], len(data["intertweet_delay"]),
-                                   int(np.ceil(np.log2(max(data["intertweet_delay"])))))
+                                  int(np.ceil(np.log2(max(data["intertweet_delay"])))))
     if urls:
         diversidad = diversidad_urls(data["urls"])
         return entropia, diversidad
     return entropia
 
 
- #TODO falta SPAM y entropia, diversidad url
-def tweets_features(tweets_RDD, sqlcontext):
+    # TODO falta SPAM y entropia, diversidad url
+
+
+def tweets_features(tweets_RDD, sc, juez):
+    sqlcontext = SQLContext(sc)
 
     logger.info("Calculando features para tweets...")
 
@@ -463,6 +477,10 @@ def tweets_features(tweets_RDD, sqlcontext):
 
     _url_ratio = url_ratio(tweets_RDD)
 
+    logger.info("Iniciando calculo del avg de tweets SPAM...")
+
+    _avg_spam = avg_spam(juez, tweets_RDD)
+
     logger.info("Registrando tablas...")
 
     _url_ratio.registerTempTable("url_ratio")
@@ -476,11 +494,12 @@ def tweets_features(tweets_RDD, sqlcontext):
     _tweets_x_dia.registerTempTable("tweets_x_dia")
     _tweets_x_hora.registerTempTable("tweets_x_hora")
     _fuentes_usuario.registerTempTable("fuentes_usuario")
+    _avg_spam.registerTempTable("avg_spam")
 
     logger.info("Join entre tweets...")
 
     _tweets_features = sqlcontext.sql(
-    "select url_ratio.user_id, url_ratio, avg_diversidad, avg_palabras, mention_ratio, avg_hashtags, reply_ratio, avg_long_tweets, avg_diversidad_lex, Mon,Fri,Sat,Sun,Thu,Tue,Wed, `00` as h0,`01` as h1,`02` as h2,`03` as h3,`04` as h4,`05` as h5,`06` as h6,`07` as h7,`08` as h8,`09` as h9,`10` as h10,`11` as h11,`12` as h12,`13` as h13,`14` as h14,`15` as h15,`16` as h16,`17` as h17,`18` as h18,`19` as h19,`20` as h20,`21` as h21, `22` as h22, `23` as h23, mobil,terceros,web from url_ratio, avg_diversidad, avg_palabras, mention_ratio, avg_hashtags, reply_ratio, avg_long_tweets, avg_diversidad_lex, tweets_x_dia, tweets_x_hora, fuentes_usuario where url_ratio.user_id=avg_diversidad.user_id and avg_diversidad.user_id=avg_palabras.user_id and avg_palabras.user_id=mention_ratio.user_id and mention_ratio.user_id=avg_hashtags.user_id and avg_hashtags.user_id=reply_ratio.user_id and reply_ratio.user_id=avg_long_tweets.user_id and avg_long_tweets.user_id=avg_diversidad_lex.user_id and avg_diversidad_lex.user_id=tweets_x_dia.user_id and tweets_x_dia.user_id=tweets_x_hora.user_id and tweets_x_hora.user_id=fuentes_usuario.user_id")
+        "select url_ratio.user_id, url_ratio, avg_diversidad, avg_palabras, mention_ratio, avg_hashtags, reply_ratio, avg_long_tweets, avg_diversidad_lex, Mon,Fri,Sat,Sun,Thu,Tue,Wed, `00` as h0,`01` as h1,`02` as h2,`03` as h3,`04` as h4,`05` as h5,`06` as h6,`07` as h7,`08` as h8,`09` as h9,`10` as h10,`11` as h11,`12` as h12,`13` as h13,`14` as h14,`15` as h15,`16` as h16,`17` as h17,`18` as h18,`19` as h19,`20` as h20,`21` as h21, `22` as h22, `23` as h23, mobil,terceros,web, avg_spam from url_ratio, avg_diversidad, avg_palabras, mention_ratio, avg_hashtags, reply_ratio, avg_long_tweets, avg_diversidad_lex, tweets_x_dia, tweets_x_hora, fuentes_usuario, avg_spam where url_ratio.user_id=avg_diversidad.user_id and avg_diversidad.user_id=avg_palabras.user_id and avg_palabras.user_id=mention_ratio.user_id and mention_ratio.user_id=avg_hashtags.user_id and avg_hashtags.user_id=reply_ratio.user_id and reply_ratio.user_id=avg_long_tweets.user_id and avg_long_tweets.user_id=avg_diversidad_lex.user_id and avg_diversidad_lex.user_id=tweets_x_dia.user_id and tweets_x_dia.user_id=tweets_x_hora.user_id and tweets_x_hora.user_id=fuentes_usuario.user_id and fuentes_usuario.user_id=avg_spam.user_id")
 
     return _tweets_features
 
@@ -496,7 +515,8 @@ def usuarios_features(usuarios, categoria=-1):
                                                     con_imagen_default=(1 if t[1][1] == True else 0),
                                                     n_listas=t[1][5],
                                                     con_geo_activo=(1 if t[1][7] == True else 0),
-                                                    reputacion=(t[1][2]/(t[1][2] + t[1][3]) if t[1][2] or t[1][3] or (t[1][2] + t[1][3] > 0) else 0),
+                                                    reputacion=(t[1][2] / (t[1][2] + t[1][3]) if t[1][2] or t[1][3] or (
+                                                    t[1][2] + t[1][3] > 0) else 0),
                                                     n_tweets=t[1][6],
                                                     followers_ratio=(t[1][2] / t[1][3] if t[1][3] > 0 else 0),
                                                     categoria=categoria)).toDF()
@@ -504,86 +524,84 @@ def usuarios_features(usuarios, categoria=-1):
     return _usuarios_features
 
 
-def timeline_features(sc, directorio):
+def timeline_features(sc, juez_spam, directorio):
+    timeline = sc.textFile(directorio)
+    sqlcontext = SQLContext(sc)
 
-        timeline = sc.textFile(directorio)
-        sqlcontext = SQLContext(sc)
+    logger.info("Cargando arhcivos...")
+    df = sqlcontext.jsonRDD(timeline)
+    df.repartition(df.user.id)
 
-        logger.info("Cargando arhcivos...")
-        df = sqlcontext.jsonRDD(timeline)
-        df.repartition(df.user.id)
+    tweets_RDD = tweets_rdd(df)
 
-        tweets_RDD = tweets_rdd(df)
+    usuarios_RDD = usuario_rdd(df)
 
-        usuarios_RDD = usuario_rdd(df)
+    _tweets_features = tweets_features(tweets_RDD, sc, juez_spam)
 
-        _tweets_features = tweets_features(tweets_RDD, sqlcontext)
+    _usuarios_features = usuarios_features(usuarios_RDD)
 
-        _usuarios_features = usuarios_features(usuarios_RDD)
+    logger.info("Realizando join de usuarios con tweets...")
 
-        logger.info("Realizando join de usuarios con tweets...")
+    set_datos = _usuarios_features.join(_tweets_features, _tweets_features.user_id == _usuarios_features.user_id).map(
+        lambda t: (t.user_id, (
+            t.ano_registro,
+            t.con_descripcion,
+            t.con_geo_activo,
+            t.con_imagen_default,
+            t.con_imagen_fondo,
+            t.con_perfil_verificado,
+            t.followers_ratio,
+            t.n_favoritos,
+            t.n_listas,
+            t.n_tweets,
+            t.reputacion,
+            t.url_ratio,
+            t.avg_diversidad,
+            t.avg_palabras,
+            t.mention_ratio,
+            t.avg_hashtags,
+            t.reply_ratio,
+            t.avg_long_tweets,
+            t.avg_diversidad_lex,
+            t.Mon,
+            t.Tue,
+            t.Wed,
+            t.Thu,
+            t.Fri,
+            t.Sat,
+            t.Sun,
+            t.h0,
+            t.h1,
+            t.h2,
+            t.h3,
+            t.h4,
+            t.h5,
+            t.h6,
+            t.h7,
+            t.h8,
+            t.h9,
+            t.h10,
+            t.h11,
+            t.h12,
+            t.h13,
+            t.h14,
+            t.h15,
+            t.h16,
+            t.h17,
+            t.h18,
+            t.h19,
+            t.h20,
+            t.h21,
+            t.h22,
+            t.h23,
+            t.web,
+            t.mobil,
+            t.terceros,
+            0,  # Entropia
+            0,  # Diversidad
+            t.avg_spam,  # SPAM or not SPAM
+            0)))  # Safety url
 
-        set_datos = _usuarios_features.join(_tweets_features, _tweets_features.user_id == _usuarios_features.user_id).map(
-            lambda t: (t.user_id, (
-                t.ano_registro,
-                t.con_descripcion,
-                t.con_geo_activo,
-                t.con_imagen_default,
-                t.con_imagen_fondo,
-                t.con_perfil_verificado,
-                t.followers_ratio,
-                t.n_favoritos,
-                t.n_listas,
-                t.n_tweets,
-                t.reputacion,
-                t.url_ratio,
-                t.avg_diversidad,
-                t.avg_palabras,
-                t.mention_ratio,
-                t.avg_hashtags,
-                t.reply_ratio,
-                t.avg_long_tweets,
-                t.avg_diversidad_lex,
-                t.Mon,
-                t.Tue,
-                t.Wed,
-                t.Thu,
-                t.Fri,
-                t.Sat,
-                t.Sun,
-                t.h0,
-                t.h1,
-                t.h2,
-                t.h3,
-                t.h4,
-                t.h5,
-                t.h6,
-                t.h7,
-                t.h8,
-                t.h9,
-                t.h10,
-                t.h11,
-                t.h12,
-                t.h13,
-                t.h14,
-                t.h15,
-                t.h16,
-                t.h17,
-                t.h18,
-                t.h19,
-                t.h20,
-                t.h21,
-                t.h22,
-                t.h23,
-                t.web,
-                t.mobil,
-                t.terceros,
-                0,#Diversidad url
-                0,#Entropia
-                0,#SPAM or not SPAM
-                0))) #Safety url
+    logger.info("Finalizado el join...")
 
-        logger.info("Finalizado el join...")
-
-        return set_datos
-
+    return set_datos

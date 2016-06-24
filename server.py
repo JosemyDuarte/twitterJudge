@@ -13,7 +13,7 @@ def init_spark_context():
 
     _sc = SparkContext(conf=conf, pyFiles=['/home/jduarte/Workspace/TesisSpark/engine.py',
                                           '/home/jduarte/Workspace/TesisSpark/app.py',
-                                          '/home/jduarte/Workspace/TesisSpark/tools.py'])
+                                          '/home/jduarte/Workspace/TesisSpark/tools.py', '/home/jduarte/Workspace/TesisSpark/CCE.py'])
     return _sc
 
 
@@ -28,7 +28,7 @@ def run_server(app):
     cherrypy.config.update({
         'engine.autoreload.on': True,
         'log.screen': True,
-        'server.socket_port': 5432,
+        'server.socket_port': 5433,
         'server.socket_host': '0.0.0.0'
     })
 

@@ -36,7 +36,7 @@ class MotorClasificador:
         spam = sqlcontext.jsonRDD(inputSpam).map(lambda t: t.text)
         noSpam = sqlcontext.jsonRDD(inputNoSpam).map(lambda t: t.text)
 
-        tf = HashingTF(numFeatures=100)
+        tf = HashingTF(numFeatures=200)
 
         spamFeatures = spam.map(lambda tweet: tf.transform(tweet.split(" ")))
         noSpamFeatures = noSpam.map(lambda tweet: tf.transform(tweet.split(" ")))
@@ -48,16 +48,22 @@ class MotorClasificador:
         trainingData.cache()
 
         modelo = RandomForest.trainClassifier(trainingData, numClasses=2, categoricalFeaturesInfo={},
-                                              numTrees=3, featureSubsetStrategy="auto",
+                                              numTrees=200, featureSubsetStrategy="auto",
                                               impurity='gini', maxDepth=30, maxBins=32)
 
         self.modelo_spam = modelo
+        modelo.save(sc, "/home/jduarte/Workspace/datos/modelo_spam")
 
         return True
 
-    # TODO agregar features faltantes (Spam, safety, diversidad url, entropia)
+    def cargar_spam(self, directorio):
+        self.modelo_spam = RandomForestModel.load(self.sc, directorio)
+        return True
+
+    # TODO agregar features faltantes (safety, diversidad url, entropia)
     def entrenar_juez(self, directorio):
         sc = self.sc
+        juez_spam = self.modelo_spam
         sqlcontext = SQLContext(sc)
         timeline_humanos = sc.textFile(directorio["humano"])
         timeline_bots = sc.textFile(directorio["bot"])
@@ -82,13 +88,13 @@ class MotorClasificador:
         usuarios_RDD_ciborgs = tools.usuario_rdd(df_ciborgs)
 
         logger.info("Calculo de features en tweetsRDD_humanos...")
-        tweets_features_humanos = tools.tweets_features(tweets_RDD_humanos, sqlcontext)
+        tweets_features_humanos = tools.tweets_features(tweets_RDD_humanos, sc, juez_spam)
 
         logger.info("Calculo de features en tweetsRDD_bots...")
-        tweets_features_bots = tools.tweets_features(tweets_RDD_bots, sqlcontext)
+        tweets_features_bots = tools.tweets_features(tweets_RDD_bots, sc, juez_spam)
 
         logger.info("Calculo de features en tweetsRDD_ciborgs...")
-        tweets_features_ciborgs = tools.tweets_features(tweets_RDD_ciborgs, sqlcontext)
+        tweets_features_ciborgs = tools.tweets_features(tweets_RDD_ciborgs, sc, juez_spam)
 
         logger.info("Calculo de features en usuariosRDD_humanos...")
         usuarios_features_humanos = tools.usuarios_features(usuarios_RDD_humanos, 0)
@@ -165,7 +171,11 @@ class MotorClasificador:
                                        t.h23,
                                        t.web,
                                        t.mobil,
-                                       t.terceros
+                                       t.terceros,
+                                       0,
+                                       0,
+                                       t.avg_spam,
+                                       0
                                    ]))
 
         logger.info("Entrenando juez...")
@@ -175,15 +185,25 @@ class MotorClasificador:
 
         logger.info("Guardando modelo...")
 
-        # TODO Solicitar direccion en caso de q se quiera almacenar o hacerlo una funcion aparte
-        modelo.save(sc, "/home/jduarte/Workspace/datos/modelo_juez")
-
         self.modelo_juez = modelo
+        # TODO Solicitar direccion en caso de q se quiera almacenar o hacerlo una funcion aparte
+
+        self.guardar_juez("/home/jduarte/Workspace/datos/modelo_juez")
 
         logger.info("Finalizando...")
 
         return True
 
+    def guardar_juez(self, directorio):
+        sc = self.sc
+        modelo = self.modelo_juez
+        if self.modelo_juez:
+            modelo.save(sc, directorio)
+            return True
+        else:
+            logger.error("NO SE HA ENTRENADO NINGUN JUEZ")
+            return False
+    
     def cargar_juez(self, directorio):
         self.modelo_juez = RandomForestModel.load(self.sc, directorio)
         return True
@@ -191,7 +211,9 @@ class MotorClasificador:
     def evaluar(self, dir_timeline):
         sc = self.sc
         modelo = self.modelo_juez
-        features = tools.timeline_features(sc, dir_timeline)
+        juez_spam = self.modelo_spam
+        features = tools.timeline_features(sc, juez_spam, dir_timeline)
         resultado = modelo.predict(features.map(lambda t: t[1])).collect()
         logger.info(resultado)
         return resultado, features
+
