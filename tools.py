@@ -1,19 +1,181 @@
 from __future__ import division
 from pyspark.sql import SQLContext, Row
+from pyspark.sql.functions import length
+from pyspark import SparkContext, StorageLevel
+from pyspark.conf import SparkConf
+from pyspark.mllib.linalg import SparseVector
+from pyspark.mllib.regression import LabeledPoint
+from pyspark.mllib.tree import RandomForest, RandomForestModel
+from pyspark.mllib.util import MLUtils
+# from pyspark.mllib.classification import NaiveBayes, NaiveBayesModel
+from pyspark.mllib.linalg import Vectors
+from pyspark.mllib.regression import LabeledPoint
+# from pyspark.mllib.classification import LogisticRegressionWithSGD
+from pyspark.mllib.feature import HashingTF
+from datetime import datetime
 from dateutil import parser
-import os
-import logging
 import json
 import numpy as np
-import CCE
+import math
+import sys
+import os
+import logging
 import requests
 import urlparse
-from pyspark.mllib.feature import HashingTF
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # logging.basicConfig(filename="logs/engine.log", format='%(levelname)s:%(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def quantize(signal, partitions, codebook):
+    indices = []
+    quanta = []
+    for datum in signal:
+        index = 0
+        while index < len(partitions) and datum > partitions[index]:
+            index += 1
+        indices.append(index)
+        quanta.append(codebook[index])
+    return indices, quanta
+
+
+def pattern_mat(x, m):
+    """
+	Construct a matrix of `m`-length segments of `x`.
+	Parameters
+	----------
+	x : (N, ) array_like
+		Array of input data.
+	m : int
+		Length of segment. Must be at least 1. In the case that `m` is 1, the
+		input array is returned.
+	Returns
+	-------
+	patterns : (m, N-m+1)
+		Matrix whose first column is the first `m` elements of `x`, the second
+		column is `x[1:m+1]`, etc.
+	Examples
+	--------
+	> p = pattern_mat([1, 2, 3, 4, 5, 6, 7], 3])
+	array([[ 1.,  2.,  3.,	4.,	 5.],
+		   [ 2.,  3.,  4.,	5.,	 6.],
+		   [ 3.,  4.,  5.,	6.,	 7.]])
+	"""
+    x = np.asarray(x).ravel()
+    if m == 1:
+        return x
+    else:
+        N = len(x)
+        patterns = np.zeros((m, N - m + 1))
+        for i in range(m):
+            patterns[i, :] = x[i:N - m + i + 1]
+        return patterns
+
+
+def en_shannon(series, L, num_int):
+    if not series:
+        raise ValueError("No hay serie definida")
+    if not L:
+        raise ValueError("No hay dimension (L) definida")
+    if not num_int:
+        raise ValueError("num_int sin definir")
+    # Normalizacion
+    series = (series - np.mean(series)) / np.std(series)
+    # We the values of the parameters required for the quantification:
+    epsilon = (max(series) - min(series)) / num_int
+    partition = np.arange(min(series), math.ceil(max(series)), epsilon)
+    codebook = np.arange(-1, num_int + 1)
+    # Uniform quantification of the time series:
+    _, quants = quantize(series, partition, codebook)
+    # The minimum value of the signal quantified assert passes -1 to 0:
+    quants = [0 if x == -1 else x for x in quants]
+    N = len(quants)
+    # We compose the patterns of length 'L':
+    X = pattern_mat(quants, L)
+    # We get the number of repetitions of each pattern:
+    num = np.ones(N - L + 1)
+    # This loop goes over the columns of 'X':
+    if L == 1:
+        X = np.atleast_2d(X)
+    for j in range(0, N - L + 1):
+        for i2 in range(j + 1, N - L + 1):
+            tmp = [0 if x == -1 else 1 for x in X[:, j]]
+            if (tmp[0] == 1) and (X[:, j] == X[:, i2]).all():
+                num[j] += 1
+                X[:, i2] = -1
+            tmp = -1
+
+    # We get those patterns which are not NaN:
+    aux = [0 if x == -1 else 1 for x in X[0, :]]
+    # Now, we can compute the number of different patterns:
+    new_num = []
+    for j, a in enumerate(aux):
+        if a != 0:
+            new_num.append(num[j])
+    new_num = np.asarray(new_num)
+
+    # We get the number of patterns which have appeared only once:
+    unique = sum(new_num[new_num == 1])
+    # We compute the probability of each pattern:
+    p_i = new_num / (N - L + 1)
+    # Finally, the Shannon Entropy is computed as:
+    SE = np.dot((- 1) * p_i, (np.log(p_i)))
+
+    return SE, unique
+
+
+def cond_en(series, L, num_int):
+    if not series:
+        raise ValueError("No hay serie definida")
+    if not L:
+        raise ValueError("No hay dimension (L) definida")
+    if not num_int:
+        raise ValueError("num_int sin definir")
+    # Processing:
+    # First, we call the Shannon Entropy function:
+    # 'L' as embedding dimension:
+    SE, unique = en_shannon(series, L, num_int)
+    # 'L-1' as embedding dimension:
+    SE_1, _ = en_shannon(series, L - 1, num_int)
+    # The Conditional Entropy is defined as a differential entropy:
+    CE = SE - SE_1
+    return CE, unique
+
+
+def correc_cond_en(series, Lmax, num_int):
+    if not series:
+        raise ValueError("No hay serie definida")
+    if not Lmax:
+        raise ValueError("No hay dimension (L) definida")
+    if not num_int:
+        raise ValueError("num_int sin definir")
+    N = len(series)
+    # We will use this for the correction term: (L=1)
+    E_est_1, _ = en_shannon(series, 1, num_int)
+    # Incializacin de la primera posicin del vector que almacena la CCE a un
+    # numero elevado para evitar que se salga del bucle en L=2 (primera
+    # iteracin):
+    # CCE is a vector that will contian the several CCE values computed:
+    CCE = sys.maxsize * np.ones(Lmax + 1)
+    CCE[0] = 100
+    CE = np.ones(Lmax + 1)
+    uniques = np.ones(Lmax + 1)
+    correc_term = np.ones(Lmax + 1)
+    for L in range(2, Lmax + 1):
+        # First, we compute the CE for the current embedding dimension: ('L')
+        CE[L], uniques[L] = cond_en(series, L, num_int)
+        # Second, we compute the percentage of patterns which are not repeated:
+        perc_L = uniques[L] / (N - L + 1)
+        correc_term[L] = perc_L * E_est_1
+        # Third, the CCE is the CE plus the correction term:
+        CCE[L] = CE[L] + correc_term[L]
+
+    # Finally, the best estimation of the CCE is the minimum value of all the
+    # CCE that have been computed:
+    CCE_min = min(CCE)
+    return CCE_min
 
 
 def lexical_diversity(text):
@@ -165,7 +327,7 @@ def check_fuentes(x):
 
 
 def tweets_rdd(df):
-    tweets_RDD = df.map(lambda t: (t.user.id, (
+    _tweets_rdd = df.map(lambda t: (t.user.id, (
         t.user.id,
         t.user.screen_name,
         t.id,
@@ -181,11 +343,11 @@ def tweets_rdd(df):
         t.created_at,
         t.place)))
 
-    return tweets_RDD
+    return _tweets_rdd
 
 
 def usuario_rdd(df):
-    usuarios_RDD = df.map(lambda t: (t.user.id, (
+    _usuarios_rdd = df.map(lambda t: (t.user.id, (
         t.user.id,  # 0
         t.user.default_profile_image,  # 1
         t.user.followers_count,  # 2
@@ -213,7 +375,7 @@ def usuario_rdd(df):
         t.user.location,  # 24
         t.user.url))).distinct()  # 25
 
-    return usuarios_RDD
+    return _usuarios_rdd
 
 
 def tweets_x_dia(tweets):
@@ -360,7 +522,8 @@ def avg_spam(juez, tweets):
     _avg_spam = ids_predictions.combineByKey(lambda value: (value, 1), lambda x, value: (x[0] + value, x[1] + 1),
                                              lambda x, y: (x[0] + y[0], x[1] + y[1])).map(
         lambda label_value: Row(user_id=label_value[0],
-                                avg_spam=float(float(label_value[1][0]) / float(label_value[1][1])))).toDF().repartition("user_id")
+                                avg_spam=float(
+                                    float(label_value[1][0]) / float(label_value[1][1])))).toDF().repartition("user_id")
 
     return _avg_spam
 
@@ -417,69 +580,67 @@ def intertweet_urls(directorio):
 
 def entropia_urls(directorio, urls=False):
     data = intertweet_urls(directorio)
-    entropia = CCE.correc_cond_en(data["intertweet_delay"], len(data["intertweet_delay"]),
-                                  int(np.ceil(np.log2(max(data["intertweet_delay"])))))
+    entropia = correc_cond_en(data["intertweet_delay"], len(data["intertweet_delay"]),
+                              int(np.ceil(np.log2(max(data["intertweet_delay"])))))
     if urls:
         diversidad = diversidad_urls(data["urls"])
         return entropia, diversidad
     return entropia
 
 
-    # TODO falta SPAM y entropia, diversidad url
-
-
-def tweets_features(tweets_RDD, sc, juez):
-    sqlcontext = SQLContext(sc)
+# TODO falta SPAM y entropia, diversidad url
+def tweets_features(_tweets_rdd, sc, juez):
+    sql_context = SQLContext(sc)
 
     logger.info("Calculando features para tweets...")
 
     logger.info("Iniciando calculo de tweets por dia...")
 
-    _tweets_x_dia = tweets_x_dia(tweets_RDD)
+    _tweets_x_dia = tweets_x_dia(_tweets_rdd)
 
     logger.info("Iniciando calculo de tweets por hora...")
 
-    _tweets_x_hora = tweets_x_hora(tweets_RDD)
+    _tweets_x_hora = tweets_x_hora(_tweets_rdd)
 
     logger.info("Iniciando exploracion de las fuentes de los tweets...")
 
-    _fuentes_usuario = fuentes_usuario(tweets_RDD)
+    _fuentes_usuario = fuentes_usuario(_tweets_rdd)
 
     logger.info("Iniciando calculo de diversidad lexicografica...")
 
-    _avg_diversidad_lexicografica = avg_diversidad_lexicografica(tweets_RDD)
+    _avg_diversidad_lexicografica = avg_diversidad_lexicografica(_tweets_rdd)
 
     logger.info("Iniciando calculo del promedio de la longuitud de los tweets...")
 
-    _avg_long_tweets_x_usuario = avg_long_tweets_x_usuario(tweets_RDD)
+    _avg_long_tweets_x_usuario = avg_long_tweets_x_usuario(_tweets_rdd)
 
     logger.info("Iniciando calculo del ratio de respuestas...")
 
-    _reply_ratio = reply_ratio(tweets_RDD)
+    _reply_ratio = reply_ratio(_tweets_rdd)
 
     logger.info("Iniciando calculo del promedio de los hashtags...")
 
-    _avg_hashtags = avg_hashtags(tweets_RDD)
+    _avg_hashtags = avg_hashtags(_tweets_rdd)
 
     logger.info("Iniciando calculo del promedio de menciones...")
 
-    _mention_ratio = mention_ratio(tweets_RDD)
+    _mention_ratio = mention_ratio(_tweets_rdd)
 
     logger.info("Iniciando calculo del promedio de palabras por tweet...")
 
-    _avg_palabras = avg_palabras(tweets_RDD)
+    _avg_palabras = avg_palabras(_tweets_rdd)
 
     logger.info("Iniciando calculo del promedio de diversidad de palabras...")
 
-    _avg_diversidad = avg_diversidad(tweets_RDD)
+    _avg_diversidad = avg_diversidad(_tweets_rdd)
 
     logger.info("Iniciando calculo del ratio de urls...")
 
-    _url_ratio = url_ratio(tweets_RDD)
+    _url_ratio = url_ratio(_tweets_rdd)
 
     logger.info("Iniciando calculo del avg de tweets SPAM...")
 
-    _avg_spam = avg_spam(juez, tweets_RDD)
+    _avg_spam = avg_spam(juez, _tweets_rdd)
 
     logger.info("Registrando tablas...")
 
@@ -498,7 +659,7 @@ def tweets_features(tweets_RDD, sc, juez):
 
     logger.info("Join entre tweets...")
 
-    _tweets_features = sqlcontext.sql(
+    _tweets_features = sql_context.sql(
         "select url_ratio.user_id, url_ratio, avg_diversidad, avg_palabras, mention_ratio, avg_hashtags, reply_ratio, avg_long_tweets, avg_diversidad_lex, Mon,Fri,Sat,Sun,Thu,Tue,Wed, `00` as h0,`01` as h1,`02` as h2,`03` as h3,`04` as h4,`05` as h5,`06` as h6,`07` as h7,`08` as h8,`09` as h9,`10` as h10,`11` as h11,`12` as h12,`13` as h13,`14` as h14,`15` as h15,`16` as h16,`17` as h17,`18` as h18,`19` as h19,`20` as h20,`21` as h21, `22` as h22, `23` as h23, mobil,terceros,web, avg_spam from url_ratio, avg_diversidad, avg_palabras, mention_ratio, avg_hashtags, reply_ratio, avg_long_tweets, avg_diversidad_lex, tweets_x_dia, tweets_x_hora, fuentes_usuario, avg_spam where url_ratio.user_id=avg_diversidad.user_id and avg_diversidad.user_id=avg_palabras.user_id and avg_palabras.user_id=mention_ratio.user_id and mention_ratio.user_id=avg_hashtags.user_id and avg_hashtags.user_id=reply_ratio.user_id and reply_ratio.user_id=avg_long_tweets.user_id and avg_long_tweets.user_id=avg_diversidad_lex.user_id and avg_diversidad_lex.user_id=tweets_x_dia.user_id and tweets_x_dia.user_id=tweets_x_hora.user_id and tweets_x_hora.user_id=fuentes_usuario.user_id and fuentes_usuario.user_id=avg_spam.user_id")
 
     return _tweets_features
@@ -516,7 +677,7 @@ def usuarios_features(usuarios, categoria=-1):
                                                     n_listas=t[1][5],
                                                     con_geo_activo=(1 if t[1][7] == True else 0),
                                                     reputacion=(t[1][2] / (t[1][2] + t[1][3]) if t[1][2] or t[1][3] or (
-                                                    t[1][2] + t[1][3] > 0) else 0),
+                                                        t[1][2] + t[1][3] > 0) else 0),
                                                     n_tweets=t[1][6],
                                                     followers_ratio=(t[1][2] / t[1][3] if t[1][3] > 0 else 0),
                                                     categoria=categoria)).toDF()
@@ -524,13 +685,157 @@ def usuarios_features(usuarios, categoria=-1):
     return _usuarios_features
 
 
+def entrenar_spam(sc, dir_spam, dir_no_spam, num_trees=3, max_depth=2):
+    sql_context = SQLContext(sc)
+
+    input_spam = sc.textFile(dir_spam)
+    input_no_spam = sc.textFile(dir_no_spam)
+
+    spam = sql_context.jsonRDD(input_spam).map(lambda t: t.text)
+    no_spam = sql_context.jsonRDD(input_no_spam).map(lambda t: t.text)
+
+    tf = HashingTF(numFeatures=200)
+
+    spam_features = spam.map(lambda tweet: tf.transform(tweet.split(" ")))
+    no_spam_features = no_spam.map(lambda tweet: tf.transform(tweet.split(" ")))
+
+    ejemplos_spam = spam_features.map(lambda features: LabeledPoint(1, features))
+    ejemplos_no_spam = no_spam_features.map(lambda features: LabeledPoint(0, features))
+
+    training_data = ejemplos_spam.union(ejemplos_no_spam)
+    training_data.cache()
+
+    modelo = RandomForest.trainClassifier(training_data, numClasses=2, categoricalFeaturesInfo={}, numTrees=num_trees,
+                                          featureSubsetStrategy="auto", impurity='gini', maxDepth=max_depth, maxBins=32)
+
+    return modelo
+
+
+# TODO agregar features faltantes (safety, diversidad url, entropia)
+def entrenar_juez(sc, juez_spam, directorio, num_trees=10, max_depth=5):
+    sql_context = SQLContext(sc)
+
+    timeline_humanos = sc.textFile(directorio["humanos"])
+    timeline_bots = sc.textFile(directorio["bots"])
+    timeline_ciborgs = sc.textFile(directorio["ciborgs"])
+
+    df_humanos = sql_context.jsonRDD(timeline_humanos)
+    df_humanos.repartition(df_humanos.user.id)
+
+    df_bots = sql_context.jsonRDD(timeline_bots)
+    df_bots.repartition(df_bots.user.id)
+
+    df_ciborgs = sql_context.jsonRDD(timeline_ciborgs)
+    df_ciborgs.repartition(df_ciborgs.user.id)
+
+    tweets_RDD_humanos = tweets_rdd(df_humanos)
+    tweets_RDD_bots = tweets_rdd(df_bots)
+    tweets_RDD_ciborgs = tweets_rdd(df_ciborgs)
+
+    usuarios_RDD_humanos = usuario_rdd(df_humanos)
+    usuarios_RDD_bots = usuario_rdd(df_bots)
+    usuarios_RDD_ciborgs = usuario_rdd(df_ciborgs)
+
+    tweets_features_humanos = tweets_features(tweets_RDD_humanos, sc, juez_spam)
+
+    tweets_features_bots = tweets_features(tweets_RDD_bots, sc, juez_spam)
+
+    tweets_features_ciborgs = tweets_features(tweets_RDD_ciborgs, sc, juez_spam)
+
+    usuarios_features_humanos = usuarios_features(usuarios_RDD_humanos, 0)
+
+    usuarios_features_ciborgs = usuarios_features(usuarios_RDD_ciborgs, 1)
+
+    usuarios_features_bots = usuarios_features(usuarios_RDD_bots, 2)
+
+    usuarios = usuarios_features_ciborgs.unionAll(usuarios_features_bots)
+    usuarios = usuarios.unionAll(usuarios_features_humanos)
+    # usuarios.cache()
+
+    tweets = tweets_features_ciborgs.unionAll(tweets_features_bots)
+    tweets = tweets.unionAll(tweets_features_humanos)
+
+    labeledPoint = usuarios.join(tweets, tweets.user_id == usuarios.user_id).map(
+        lambda t: LabeledPoint(t.categoria,
+                               [
+                                   t.ano_registro,
+                                   t.con_descripcion,
+                                   t.con_geo_activo,
+                                   t.con_imagen_default,
+                                   t.con_imagen_fondo,
+                                   t.con_perfil_verificado,
+                                   t.followers_ratio,
+                                   t.n_favoritos,
+                                   t.n_listas,
+                                   t.n_tweets,
+                                   t.reputacion,
+                                   t.url_ratio,
+                                   t.avg_diversidad,
+                                   t.avg_palabras,
+                                   t.mention_ratio,
+                                   t.avg_hashtags,
+                                   t.reply_ratio,
+                                   t.avg_long_tweets,
+                                   t.avg_diversidad_lex,
+                                   t.Mon,
+                                   t.Tue,
+                                   t.Wed,
+                                   t.Thu,
+                                   t.Fri,
+                                   t.Sat,
+                                   t.Sun,
+                                   t.h0,
+                                   t.h1,
+                                   t.h2,
+                                   t.h3,
+                                   t.h4,
+                                   t.h5,
+                                   t.h6,
+                                   t.h7,
+                                   t.h8,
+                                   t.h9,
+                                   t.h10,
+                                   t.h11,
+                                   t.h12,
+                                   t.h13,
+                                   t.h14,
+                                   t.h15,
+                                   t.h16,
+                                   t.h17,
+                                   t.h18,
+                                   t.h19,
+                                   t.h20,
+                                   t.h21,
+                                   t.h22,
+                                   t.h23,
+                                   t.web,
+                                   t.mobil,
+                                   t.terceros,
+                                   0,
+                                   0,
+                                   t.avg_spam,
+                                   0
+                               ])).cache()
+
+    modelo = RandomForest.trainClassifier(labeledPoint, numClasses=3, categoricalFeaturesInfo={}, numTrees=num_trees,
+                                          featureSubsetStrategy="auto", impurity='gini', maxDepth=max_depth, maxBins=32)
+
+    """modelo = RandomForest.trainRegressor(labeledPoint, categoricalFeaturesInfo={},
+                                         numTrees=num_trees, featureSubsetStrategy="auto",
+                                         impurity='variance', maxDepth=max_depth, maxBins=32)"""
+
+    return modelo
+
+
 def timeline_features(sc, juez_spam, directorio):
     timeline = sc.textFile(directorio)
-    sqlcontext = SQLContext(sc)
+    sql_context = SQLContext(sc)
 
     logger.info("Cargando arhcivos...")
-    df = sqlcontext.jsonRDD(timeline)
+    df = sql_context.jsonRDD(timeline)
     df.repartition(df.user.id)
+
+    df = df.where(length(df.text) > 0)
 
     tweets_RDD = tweets_rdd(df)
 
@@ -543,65 +848,128 @@ def timeline_features(sc, juez_spam, directorio):
     logger.info("Realizando join de usuarios con tweets...")
 
     set_datos = _usuarios_features.join(_tweets_features, _tweets_features.user_id == _usuarios_features.user_id).map(
-        lambda t: (t.user_id, (
-            t.ano_registro,
-            t.con_descripcion,
-            t.con_geo_activo,
-            t.con_imagen_default,
-            t.con_imagen_fondo,
-            t.con_perfil_verificado,
-            t.followers_ratio,
-            t.n_favoritos,
-            t.n_listas,
-            t.n_tweets,
-            t.reputacion,
-            t.url_ratio,
-            t.avg_diversidad,
-            t.avg_palabras,
-            t.mention_ratio,
-            t.avg_hashtags,
-            t.reply_ratio,
-            t.avg_long_tweets,
-            t.avg_diversidad_lex,
-            t.Mon,
-            t.Tue,
-            t.Wed,
-            t.Thu,
-            t.Fri,
-            t.Sat,
-            t.Sun,
-            t.h0,
-            t.h1,
-            t.h2,
-            t.h3,
-            t.h4,
-            t.h5,
-            t.h6,
-            t.h7,
-            t.h8,
-            t.h9,
-            t.h10,
-            t.h11,
-            t.h12,
-            t.h13,
-            t.h14,
-            t.h15,
-            t.h16,
-            t.h17,
-            t.h18,
-            t.h19,
-            t.h20,
-            t.h21,
-            t.h22,
-            t.h23,
-            t.web,
-            t.mobil,
-            t.terceros,
-            0,  # Entropia
-            0,  # Diversidad
-            t.avg_spam,  # SPAM or not SPAM
-            0)))  # Safety url
+        lambda t: (t.user_id, Row(
+            ano_registro=t.ano_registro,
+            con_descripcion=t.con_descripcion,
+            con_geo_activo=t.con_geo_activo,
+            con_imagen_default=t.con_imagen_default,
+            con_imagen_fondo=t.con_imagen_fondo,
+            con_perfil_verificado=t.con_perfil_verificado,
+            followers_ratio=t.followers_ratio,
+            n_favoritos=t.n_favoritos,
+            n_listas=t.n_listas,
+            n_tweets=t.n_tweets,
+            reputacion=t.reputacion,
+            url_ratio=t.url_ratio,
+            avg_diversidad=t.avg_diversidad,
+            avg_palabras=t.avg_palabras,
+            mention_ratio=t.mention_ratio,
+            avg_hashtags=t.avg_hashtags,
+            reply_ratio=t.reply_ratio,
+            avg_long_tweets=t.avg_long_tweets,
+            avg_diversidad_lex=t.avg_diversidad_lex,
+            uso_lunes=t.Mon,
+            uso_martes=t.Tue,
+            uso_miercoles=t.Wed,
+            uso_jueves=t.Thu,
+            uso_viernes=t.Fri,
+            uso_sabado=t.Sat,
+            uso_domingo=t.Sun,
+            hora_0=t.h0,
+            hora_1=t.h1,
+            hora_2=t.h2,
+            hora_3=t.h3,
+            hora_4=t.h4,
+            hora_5=t.h5,
+            hora_6=t.h6,
+            hora_7=t.h7,
+            hora_8=t.h8,
+            hora_9=t.h9,
+            hora_10=t.h10,
+            hora_11=t.h11,
+            hora_12=t.h12,
+            hora_13=t.h13,
+            hora_14=t.h14,
+            hora_15=t.h15,
+            hora_16=t.h16,
+            hora_17=t.h17,
+            hora_18=t.h18,
+            hora_19=t.h19,
+            hora_20=t.h20,
+            hora_21=t.h21,
+            hora_22=t.h22,
+            hora_23=t.h23,
+            uso_web=t.web,
+            uso_mobil=t.mobil,
+            uso_terceros=t.terceros,
+            entropia=0,  # Entropia
+            diversidad_url=0,  # Diversidad
+            avg_spam=t.avg_spam,  # SPAM or not SPAM
+            safety_url=0)))  # Safety url
 
     logger.info("Finalizado el join...")
 
     return set_datos
+
+
+# TODO agregar user_id al resultado de la prediccion
+def evaluar(sc, juez_spam, juez_usuario, dir_timeline):
+    features = timeline_features(sc, juez_spam, dir_timeline)
+    resultado = juez_usuario.predict(features.map(lambda t: (t[1].ano_registro,
+                                                             t[1].con_descripcion,
+                                                             t[1].con_geo_activo,
+                                                             t[1].con_imagen_default,
+                                                             t[1].con_imagen_fondo,
+                                                             t[1].con_perfil_verificado,
+                                                             t[1].followers_ratio,
+                                                             t[1].n_favoritos,
+                                                             t[1].n_listas,
+                                                             t[1].n_tweets,
+                                                             t[1].reputacion,
+                                                             t[1].url_ratio,
+                                                             t[1].avg_diversidad,
+                                                             t[1].avg_palabras,
+                                                             t[1].mention_ratio,
+                                                             t[1].avg_hashtags,
+                                                             t[1].reply_ratio,
+                                                             t[1].avg_long_tweets,
+                                                             t[1].avg_diversidad_lex,
+                                                             t[1].uso_lunes,
+                                                             t[1].uso_martes,
+                                                             t[1].uso_miercoles,
+                                                             t[1].uso_jueves,
+                                                             t[1].uso_viernes,
+                                                             t[1].uso_sabado,
+                                                             t[1].uso_domingo,
+                                                             t[1].hora_0,
+                                                             t[1].hora_1,
+                                                             t[1].hora_2,
+                                                             t[1].hora_3,
+                                                             t[1].hora_4,
+                                                             t[1].hora_5,
+                                                             t[1].hora_6,
+                                                             t[1].hora_7,
+                                                             t[1].hora_8,
+                                                             t[1].hora_9,
+                                                             t[1].hora_10,
+                                                             t[1].hora_11,
+                                                             t[1].hora_12,
+                                                             t[1].hora_13,
+                                                             t[1].hora_14,
+                                                             t[1].hora_15,
+                                                             t[1].hora_16,
+                                                             t[1].hora_17,
+                                                             t[1].hora_18,
+                                                             t[1].hora_19,
+                                                             t[1].hora_20,
+                                                             t[1].hora_21,
+                                                             t[1].hora_22,
+                                                             t[1].hora_23,
+                                                             t[1].uso_web,
+                                                             t[1].uso_mobil,
+                                                             t[1].uso_terceros,
+                                                             t[1].entropia,
+                                                             t[1].diversidad_url,
+                                                             t[1].avg_spam,
+                                                             t[1].safety_url)))
+    return resultado, features

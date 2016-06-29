@@ -12,8 +12,8 @@ def init_spark_context():
     conf.setAppName('ExtraerCaracteristicas')
 
     _sc = SparkContext(conf=conf, pyFiles=['/home/jduarte/Workspace/TesisSpark/engine.py',
-                                          '/home/jduarte/Workspace/TesisSpark/app.py',
-                                          '/home/jduarte/Workspace/TesisSpark/tools.py', '/home/jduarte/Workspace/TesisSpark/CCE.py'])
+                                           '/home/jduarte/Workspace/TesisSpark/app.py',
+                                           '/home/jduarte/Workspace/TesisSpark/tools.py'])
     return _sc
 
 

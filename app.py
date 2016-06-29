@@ -29,13 +29,13 @@ def entrenar_juez():
     logger.debug("Iniciando carga inicial...")
     directorio = request.json
     logging.info(directorio)
-    if not directorio["bot"]:
+    if not directorio["bots"]:
         logging.info("No se especifico la direccion de la carpeta para los bots")
         return json.dumps(dict(resultado=False))
-    if not directorio["humano"]:
+    if not directorio["humanos"]:
         logging.info("No se especifico la direccion de la carpeta para los humanos")
         return json.dumps(dict(resultado=False))
-    if not directorio["ciborg"]:
+    if not directorio["ciborgs"]:
         logging.info("No se especifico la direccion de la carpeta para los ciborgs")
         return json.dumps(dict(resultado=False))
 
