@@ -13,7 +13,8 @@ def init_spark_context():
 
     _sc = SparkContext(conf=conf, pyFiles=['/home/jduarte/Workspace/TesisSpark/engine.py',
                                            '/home/jduarte/Workspace/TesisSpark/app.py',
-                                           '/home/jduarte/Workspace/TesisSpark/tools.py'])
+                                           '/home/jduarte/Workspace/TesisSpark/tools.py',
+                                           '/home/jduarte/Workspace/TesisSpark/pymongo_spark.py'])
     return _sc
 
 
