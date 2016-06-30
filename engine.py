@@ -1,342 +1,73 @@
-from pyspark.sql import SQLContext
-import logging
+import os
+import logging, tools
+from pyspark.mllib.tree import RandomForest, RandomForestModel
 
-logging.basicConfig(level=logging.INFO)
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+# logging.basicConfig(filename="logs/engine.log", format='%(levelname)s:%(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
-def not_none(a):
-    if a is not None:
-        return 1
-    else:
-        return 0
-
-
-def lexical_diversity(text):
-    if len(text) == 0:
-        diversity = 0
-    else:
-        diversity = float(len(set(text))) / len(text)
-    return diversity
 
 
 class MotorClasificador:
     """Motor del clasificador de cuentas
     """
 
-    def __init__(self, sc, dataset_path):
-        """Arranca el motor para las clasificaciones dado un Spark Context y una dirección para el dataset
+    def __init__(self, sc):
+        """Inicializa el SparkContext
         """
 
         self.sc = sc
-        logger.info("Starting up the Recommendation Engine: ")
+        self.juez_timelines = None
+        self.modelo_spam = None
+        self.datos = None
+        logger.info("Calentando motores...")
 
-        timeline = sc.textFile(dataset_path)
-        sqlcontext = SQLContext(self.sc)
-        logger.info("Cargando timelines...")
-        df1 = sqlcontext.jsonRDD(timeline)
-        logger.info("Filtrando archivos vacios...")
-        self.df = df1.filter("length(text)>0").cache()
-        self.df.repartition(self.df.user.id)
+    def entrenar_spam(self, dir_spam, dir_no_spam):
 
-        self.tweets_RDD = self.df.map(lambda t: (t.id, (
-            t.user.id,
-            t.user.screen_name,
-            t.id,
-            t.truncated,
-            t.text,
-            t.entities,
-            t.is_quote_status,
-            t.in_reply_to_status_id,
-            t.favorite_count,
-            t.source,
-            t.in_reply_to_screen_name,
-            t.in_reply_to_user_id,
-            t.retweet_count,
-            t.geo,
-            t.lang,
-            t.created_at,
-            t.place)))
+        sc = self.sc
+        modelo = tools.entrenar_spam(sc, dir_spam, dir_no_spam)
+        self.modelo_spam = modelo
 
-        # tweets.repartition(tweets.user.id)
+        return True
 
-        self.usuarios_RDD = self.df.map(lambda t: (t.user.id, (
-            t.user.id,
-            t.user.default_profile_image,
-            t.user.followers_count,
-            t.user.friends_count,
-            t.user.verified,
-            t.user.listed_count,
-            t.user.statuses_count,
-            t.user.geo_enabled,
-            t.user.screen_name,
-            t.user.lang,
-            t.user.favourites_count,
-            t.user.created_at,
-            t.user.default_profile,
-            t.user.is_translator,
-            t.user.contributors_enabled,
-            t.user.is_translation_enabled,
-            t.user.description,
-            t.user.profile_use_background_image,
-            t.user.profile_background_tile,
-            t.user.profile_link_color,
-            t.user.profile_sidebar_border_color,
-            t.user.profile_background_color,
-            t.user.has_extended_profile,
-            t.user.profile_text_color,
-            t.user.location,
-            t.user.url))).distinct()
+    def cargar_spam(self, directorio):
 
-    def cantidad_tweets(self):
-        """Contar la cantidad de tweets en
-                self.tweets_RDD
-        """
-        return self.tweets_RDD.count()
+        self.modelo_spam = RandomForestModel.load(self.sc, directorio)
 
-    def tweets_usuario(self):
-        """Contar la cantidad de tweets
-                en self.tweets_RDD y agrupar el resultado
-                por usuario
-        """
-        return self.tweets_RDD.map(lambda t: (t[1][0], 1)).reduceByKey(lambda a, b: a + b)
+        return True
 
-    def caracteres_usuario(self):
-        """Contar la cantidad de caracteres
-                totales utilizados en todos los
-                tweets de cada usuario
-        """
-        return self.tweets_RDD.map(lambda t: (t[1][0], len(t[1][4]))).reduceByKey(lambda a, b: a + b)
+    def entrenar_juez(self, directorio):
+        sc = self.sc
+        juez_spam = self.modelo_spam
 
-    def __sum_count_tweets_usuario(self):
-        """Cuenta la cantidad de tweets por usuario
-                y la cantidad de caracteres totales utilizados
-                EJEMPLO: (id,caracteres totales, ntweets) EJEMPLO: [(191514816, (104415, 800))]
-        """
-        return self.tweets_RDD.map(lambda t: (t[1][0], len(t[1][4]))).combineByKey(
-            lambda value: (value, 1),
-            lambda x, value: (x[0] + value, x[1] + 1),
-            lambda x, y: (x[0] + y[0], x[1] + y[1]))
+        logger.info("Entrenando juez")
 
-    def avg_long_tweets_usuario(self):
-        """Promedio de longitud de los tweets
-                por usuario.
-                EJEMPLO: (id_user,avg) -> [(191514816, 130.51875)]
-        """
-        return self.__sum_count_tweets_usuario().map(
-            lambda label_value: (label_value[0], float(float(label_value[1][0]) / float(label_value[1][1]))))
+        juez_timelines = tools.entrenar_juez(sc, juez_spam, directorio)
 
-    def __sum_count_diversidad_lex(self):
-        """Cuenta el promedio de caracteres diferentes
-                utilizados por los usuarios en sus
-                tweets.
-                :return: RDD (id, lexical_diversity, ntweets) [(187698476, (306.0745307679238, 999))
-        """
-        return self.tweets_RDD.map(lambda t: (t[1][0], lexical_diversity(t[1][4]))).combineByKey(
-            lambda value: (value, 1),
-            lambda x, value: (x[0] + value, x[1] + 1),
-            lambda x, y: (x[0] + y[0], x[1] + y[1]))
+        self.juez_timelines = juez_timelines
 
-    def avg_diversidad_lexicografica(self):
-        """Promedio de diversidad lexicografica
-                del usuario en sus tweets
-                EJEMPLO: (id_user,avg) -> [(191514816, 130.51875)]
-        """
-        return self.__sum_count_diversidad_lex().map(
-            lambda label_value: (label_value[0], float(float(label_value[1][0]) / float(label_value[1][1]))))
+        logger.info("Finalizando...")
 
-    def replys_usuario(self):
-        """Cuenta la cantidad de replys que hace un usuario
-                en su timeline
-        :return: RDD cantidad de replys por ratio (id_user,n_replys)
-        """
-        return self.tweets_RDD.map(lambda t: (t[1][0], not_none(t[1][7]))).reduceByKey(lambda a, b: a + b)
+        return True
 
-    def __sum_count_reply(self):
-        """ Cuenta la cantidad de replys y tweets totales por
-                usuario
-        :return: RDD con la cantidad de replys y el total de tweets
-        EJEMPLO: (id, n_replys, n_tweets) [(187698476, (30, 999))
-        """
-        return self.tweets_RDD.map(lambda t: (t[1][0], not_none(t[1][7]))).combineByKey(
-            lambda value: (value, 1),
-            lambda x, value: (x[0] + value, x[1] + 1),
-            lambda x, y: (x[0] + y[0], x[1] + y[1]))
-
-    def reply_ratio(self):
-        """ Promedio de replys en el timeline
-                de los usuarios
-        :return: RDD reply ratio por usuario
-        """
-        return self.__sum_count_reply().map(
-            lambda label_value: (label_value[0], float(float(label_value[1][0]) / float(label_value[1][1]))))
-
-    def __tweets_con_hashtags(self):
-        """ Filtra los tweets que utilicen hashtags
-        :return: RDD con solo tweets que tengan hashtags
-        """
-        return self.tweets_RDD.filter(lambda t: len(t[1][5].hashtags) > 0)
-
-    def hashtags_usuario(self):
-        """ Cuenta la cantidad de hashtags que utilizan los
-        usuarios en sus timelines
-        :return: RDD con la cantidad de hashtags que utiliza cada usuario
-        """
-        return self.__tweets_con_hashtags().map(lambda t: (t[1][0], len(t[1][5].hashtags))).reduceByKey(
-            lambda a, b: a + b)
-
-    def count_usuarios(self):
-        """ Contar la cantidad de usuarios en el
-                dataset
-        :return: N de usuarios
-        """
-        return self.usuarios_RDD.count()
-
-    def followers_friends_ratio(self):
-        """ Calcula el ratio followers/friends de cada usuario
-        :return: RDD con el ratio de followers/friends de cada usuario
-        """
-        return self.usuarios_RDD.mapValues(lambda t: (t[2], t[3], float(float(t[2]) / float(t[3]))))
-
-    def reputacion(self):
-        """ Calcula la reputación de cada cuenta
-                reputacion = followers/(followers + friends)
-        :return: RDD (iduser,(followers, friends, reputacion)
-        """
-        return self.usuarios_RDD.mapValues(lambda t: (t[2], t[3], float(float(t[2]) / float(t[2]) + float(t[3]))))
-
-    def get_reputacion(self, user_id):
-        """ Calcula la reputacion del usuario especificado
-                reputacion = followers/(followers + friends)
-        :param user_id: id del usuario a calcular la reputacion
-        :return: Array: (iduser,(followers, friends, reputacion)
-         EJEMPLO: [(194598018, (184, 79, 80.0))]
-        """
-        return self.usuarios_RDD.filter(lambda t: t[0] == user_id).\
-            mapValues(lambda t: (t[2], t[3], float(float(t[2]) / float(t[2]) + float(t[3])))).collect()
-
-    def geo_enable(self):
-        """ Filtra la cuentas que posean el geo_enable = True
-        :return: RDD de cuentas con geo_enable = True
-        """
-        return self.usuarios_RDD.filter(lambda t: t[1][7] == True)
-
-    def check_user_geo_enable(self, user_id):
-        """ Revisa si el usuario posee la opcion geo_enable activada
-        :param user_id: id del usuario a verificar
-        :return: True or false
-        """
-        if len(self.usuarios_RDD.filter(lambda t: t[0] == user_id and t[1][7] == True).collect()) > 0:
+    def guardar_juez(self, directorio):
+        sc = self.sc
+        modelo = self.juez_timelines
+        if self.juez_timelines:
+            modelo.save(sc, directorio)
             return True
         else:
+            logger.error("NO SE HA ENTRENADO NINGUN JUEZ")
             return False
 
-    def perfil_verificado(self):
-        """ Filtra las cuentas que posean el perfil verificado
-        :return: RDD de cuentas con perfil verficado
-        """
-        return self.usuarios_RDD.filter(lambda t: t[1][4] == True)
+    def cargar_juez(self, directorio):
+        self.juez_timelines = RandomForestModel.load(self.sc, directorio)
+        return True
 
-    def check_perfil_verificado(self, user_id):
-        """ Revisa si el usuario posee el perfil verificado
-        :param user_id: id del usuario a verificar
-        :return: True or false
-        """
-        if len(self.usuarios_RDD.filter(lambda t: t[0] == user_id and t[1][4] == True).collect()) > 0:
-            return True
-        else:
-            return False
-
-    def imagen_perfil_default(self):
-        """ Filtra las cuentas que no posean la imagen de perfil por defecto
-        :return: RDD de cuentas con imagen de perfil por defecto
-        """
-        return self.usuarios_RDD.filter(lambda t: t[1][1] == True)
-
-    def check_imagen_perfil_default(self, user_id):
-        """ Revisa si el usuario posee la imagen de perfil por defecto
-        :param user_id: id del usuario a verificar
-        :return: True or false
-        """
-        if len(self.usuarios_RDD.filter(lambda t: t[0] == user_id and t[1][1] == True).collect()) > 0:
-            return True
-        else:
-            return False
-
-    def get_user_by_id(self, user_id):
-        """ Obtiene la informacion referente al id del usuario solicitado
-        :param user_id: id del usuario a recuperar
-        :return: usuario
-        """
-        return self.usuarios_RDD.filter(lambda t: t[0] == user_id).first()
-
-    def get_user_by_screen_name(self, user_screen_name):
-        """ Obtiene la informacion referente al screen_name solicitado
-        :param user_screen_name: screen name del usuario requerido
-        :return: usuario
-        """
-        return self.usuarios_RDD.filter(lambda t: t[1][8] == user_screen_name).first()
-
-    def fuentes_distintas_general(self):
-        """
-        Retorna las distintas fuentes generadas por todos los tweets
-        y la cantidad de veces utilizada
-        :return: RDD (fuente,Nrepticiones)
-        EJEMPLO: {u'<a href="http://www.hootsuite.com" rel="nofollow">Hootsuite</a>', 861}
-        """
-        return self.tweets_RDD.map(lambda t: (t[1][9], 1)).reduceByKey(lambda a, b: a + b)
-
-    def fuentes_mas_utilizadas_general(self, n, desc=True):
-        """ Retorna las n fuentes mas utilizadas en la base general de tweets
-        :param n: cantidad de fuentes a retornar
-        :param desc: orden en el que se desea obtener el resultado
-        :return: Array con las N fuentes MAS o MENOS utilizadas, dependiendo de si se ordena
-        ascendente o descendete.
-        EJEMPLO: RDD.fuentes_mas_utilizadas_general(2) =>
-        [(u'<a href="http://twitter.com" rel="nofollow">Twitter Web Client</a>', 459),
-        (u'<a href="http://blackberry.com/twitter" rel="nofollow">Twitter for BlackBerry\xae</a>', 183)]
-        """
-        if desc:
-            return self.fuentes_distintas_general().takeOrdered(n, key=lambda x: -x[1])
-        else:
-            return self.fuentes_distintas_general().takeOrdered(n, key=lambda x: x[1])
-
-    def fuentes_por_usuario(self):
-        """ Calcula la cantidad de fuentes distintas utilizadas
-        en el timeline de cada usuario
-        :return RDD (id_usuario,fuente,nveces)
-        """
-        return self.tweets_RDD.map(lambda t: ((t[1][0], t[1][9]), 1)).reduceByKey(lambda a, b: a + b)
-
-    def fuentes_de_usuario(self, user_id):
-        """ Retorna las fuentes utilizadas por el usuario dado
-        :param user_id: id del usuario a retornar
-        :return Array ((user_id,fuente),nveces)
-        EJEMPLO: [((192286676, u'<a href="http://twitter.com" rel="nofollow">Twitter Web Client</a>'), 106),
-         ((192286676, u'<a href="https://about.twitter.com/products/tweetdeck" rel="nofollow">TweetDeck</a>'), 59)]
-        """
-        return self.tweets_RDD().filter(lambda t: t[1][0] == user_id).map(lambda t: ((t[1][0], t[1][9]), 1))\
-            .reduceByKey(lambda a, b: a + b).collect()
-
-    def fuentes_mas_utilizadas_de_usuario(self, user_id, n, desc=True):
-        """ Retorna las n fuentes mas utilizadas del usuario user_id
-        :param user_id: ID del usuario a buscar
-        :param n: numero de fuentes a retornar
-        :param desc: Ordenar de forma descendente o ascendente?
-        :return: Array con las N fuentes MAS o MENOS utilizadas, dependiendo del ordenado
-        ascendente o descendete.
-        EJEMPLO:  RDD.fuentes_mas_utilizadas_de_usuario(2,183641931) =>
-        [((183641931, u'<a href="http://twitter.com/download/android" rel="nofollow">Twitter for Android</a>'), 52),
-         ((183641931, u'<a href="http://www.steelthorn.com" rel="nofollow">QuickPull</a>'), 2)]
-        """
-        if desc:
-            return self.fuentes_de_usuario(user_id).takeOrdered(n, key=lambda x: -x[1])
-        else:
-            return self.fuentes_de_usuario(user_id).takeOrdered(n, key=lambda x: x[1])
-
-    def avg_palabras(self):
-        """ Calcula el promedio de palabras que utilizan los usuario
-        en sus tweets
-        :return: RDD (id_usuario,avg_palabras)
-        """
-
+    #TODO guardar en BD resultados
+    def evaluar(self, dir_timeline):
+        sc = self.sc
+        juez_timeline = self.juez_timelines
+        juez_spam = self.modelo_spam
+        resultado, features = tools.evaluar(sc, juez_spam, juez_timeline, dir_timeline)
+        return resultado, features

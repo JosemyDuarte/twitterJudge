@@ -4,17 +4,18 @@ from app import create_app
 from pyspark import SparkContext
 from pyspark.conf import SparkConf
 
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
 
 def init_spark_context():
     conf = SparkConf()
     conf.setAppName('ExtraerCaracteristicas')
 
-    sc = SparkContext(conf=conf, pyFiles=['/home/jduarte/Workspace/TesisSpark/engine.py',
-                                          '/home/jduarte/Workspace/TesisSpark/app.py'])
-
-    return sc
-
-    # inputFile = "/home/jduarte/Documentos/1/1450418713.tar.gz"
+    _sc = SparkContext(conf=conf, pyFiles=['/home/jduarte/Workspace/TesisSpark/engine.py',
+                                           '/home/jduarte/Workspace/TesisSpark/app.py',
+                                           '/home/jduarte/Workspace/TesisSpark/tools.py',
+                                           '/home/jduarte/Workspace/TesisSpark/pymongo_spark.py'])
+    return _sc
 
 
 def run_server(app):
@@ -28,7 +29,7 @@ def run_server(app):
     cherrypy.config.update({
         'engine.autoreload.on': True,
         'log.screen': True,
-        'server.socket_port': 5432,
+        'server.socket_port': 5433,
         'server.socket_host': '0.0.0.0'
     })
 
@@ -40,8 +41,6 @@ def run_server(app):
 if __name__ == "__main__":
     # Init spark context and load libraries
     sc = init_spark_context()
-    dataset_path = "/home/jduarte/Workspace/TesisSpark/datos"
-    app = create_app(sc, dataset_path)
-
+    app = create_app(sc)
     # start web server
     run_server(app)

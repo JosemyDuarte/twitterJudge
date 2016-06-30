@@ -1,6 +1,8 @@
 __pycache__
 .idea
 datos
-main.py~
-app.py~
-server.py~
+*~
+*.pyc
+logs/*
+datos/
+datos_cat/
