@@ -4,5 +4,3 @@ datos
 *~
 *.pyc
 logs/*
-datos/
-datos_cat/

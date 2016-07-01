@@ -78,6 +78,10 @@ def evaluar():
     resultado, _ = motor_clasificador.evaluar(directorio)
     return json.dumps(dict(resultado=resultado))
 
+@main.route("/alive/", methods=["GET"])
+def alive():
+    return json.dumps(dict(resultado="I'm Alive!"))
+
 def create_app(spark_context):
     global motor_clasificador
 
