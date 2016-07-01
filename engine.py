@@ -64,10 +64,10 @@ class MotorClasificador:
         self.juez_timelines = RandomForestModel.load(self.sc, directorio)
         return True
 
-    #TODO guardar en BD resultados
+
     def evaluar(self, dir_timeline):
         sc = self.sc
         juez_timeline = self.juez_timelines
         juez_spam = self.modelo_spam
-        resultado, features = tools.evaluar(sc, juez_spam, juez_timeline, dir_timeline)
-        return resultado, features
+        resultado = tools.evaluar(sc, juez_spam, juez_timeline, dir_timeline)
+        return resultado

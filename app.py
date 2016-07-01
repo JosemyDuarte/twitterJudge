@@ -75,7 +75,7 @@ def cargar_spam():
 def evaluar():
     directorio = request.json.get("directorio")
     logger.debug("Iniciando evaluacion sobre: %s", directorio)
-    resultado, _ = motor_clasificador.evaluar(directorio)
+    resultado = motor_clasificador.evaluar(directorio)
     return json.dumps(dict(resultado=resultado))
 
 @main.route("/alive/", methods=["GET"])
