@@ -71,10 +71,18 @@ def cargar_spam():
     resultado = motor_clasificador.cargar_spam(directorio)
     return json.dumps(dict(resultado=resultado))
 
+
+@main.route("/mongo_uri/", methods=["POST"])
+def mongo_uri():
+    _mongo_uri = request.json.get("mongodb_uri")
+    logger.debug("MongoDB URI a utilizar: %s", _mongo_uri)
+    resultado = motor_clasificador.inicializar_mongo(_mongo_uri)
+    return json.dumps(dict(resultado=resultado))
+
 @main.route("/evaluar/", methods=["POST"])
 def evaluar():
     directorio = request.json.get("directorio")
-    logger.debug("Iniciando evaluacion sobre: %s", directorio)
+    logger.info("Iniciando evaluacion sobre: %s", directorio)
     resultado = motor_clasificador.evaluar(directorio)
     return json.dumps(dict(resultado=resultado))
 

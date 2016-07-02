@@ -915,8 +915,7 @@ def timeline_features(sc, juez_spam, directorio):
 
 
 # TODO no permitir 2 veces el mismo usuario en Mongo
-# TODO pasar URI de mongo
-def evaluar(sc, juez_spam, juez_usuario, dir_timeline):
+def evaluar(sc, juez_spam, juez_usuario, dir_timeline, mongo_uri):
     features = timeline_features(sc, juez_spam, dir_timeline)
     predicciones = juez_usuario.predict(features.map(lambda t: (t.ano_registro,
                                                                 t.con_descripcion,
@@ -977,9 +976,8 @@ def evaluar(sc, juez_spam, juez_usuario, dir_timeline):
                                                                 t.safety_url)))
 
     id_y_prediccion = features.map(lambda t: t.user_id).zip(predicciones)
-
+    id_y_prediccion.saveToMongoDB(mongo_uri + ".predicciones")
     features = features.map(lambda row: row.asDict())
-    id_y_prediccion.saveToMongoDB('mongodb://mongo:27017/db.resultado')
-    features.saveToMongoDB('mongodb://mongo:27017/db.features')
+    features.saveToMongoDB(mongo_uri + ".caracteristicas")
 
     return True

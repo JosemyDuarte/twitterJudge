@@ -20,6 +20,7 @@ class MotorClasificador:
         self.juez_timelines = None
         self.modelo_spam = None
         self.datos = None
+        self.mongo_uri = None
         logger.info("Calentando motores...")
 
     def entrenar_spam(self, dir_spam, dir_no_spam):
@@ -69,5 +70,10 @@ class MotorClasificador:
         sc = self.sc
         juez_timeline = self.juez_timelines
         juez_spam = self.modelo_spam
-        resultado = tools.evaluar(sc, juez_spam, juez_timeline, dir_timeline)
+        mongo_uri = self.mongo_uri
+        resultado = tools.evaluar(sc, juez_spam, juez_timeline, dir_timeline, mongo_uri)
         return resultado
+
+    def inicializar_mongo(self, mongo_uri):
+        self.mongo_uri = mongo_uri
+        return True
