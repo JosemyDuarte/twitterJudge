@@ -1,6 +1,6 @@
 from __future__ import division
 from pyspark.sql import SQLContext, Row
-from pyspark.sql.functions import udf, lag, length
+from pyspark.sql.functions import udf, lag, length, collect_list
 from pyspark.sql.window import Window
 from pyspark import SparkContext, StorageLevel
 from pyspark.conf import SparkConf
@@ -365,7 +365,7 @@ def tweets_rdd(df):
         t.lang,
         t.created_at,
         t.place,
-        t.time_intertweet)))
+    )))
 
     return _tweets_rdd
 
@@ -397,7 +397,8 @@ def usuario_rdd(df):
         t.user.has_extended_profile,  # 22
         t.user.profile_text_color,  # 23
         t.user.location,  # 24
-        t.user.url))).distinct()  # 25
+        t.user.url,
+        t.lista_intertweet))).distinct()  # 25
 
     return _usuarios_rdd
 
@@ -861,9 +862,15 @@ def timeline_features(sc, juez_spam, directorio):
 
     df = df.where(length(df.text) > 0)
     df = df.select("*", u_parse_time(df['created_at']).cast('timestamp').alias('created_at_ts'))
-    df = df.withColumn("time_intertweet", (
-        df.created_at_ts.cast("bigint") - lag(df.created_at_ts.cast("bigint"), 1).over(
-            Window.partitionBy("user.id").orderBy("created_at_ts"))).cast("bigint"))
+
+    df_intertweet = df.select(df.user.id.alias("user_id"), (
+        df.created_at_ts.cast('bigint') - lag(df.created_at_ts.cast('bigint'), ).over(
+            Window.partitionBy("user.id").orderBy("created_at_ts"))).cast("bigint").alias("time_intertweet"))
+
+    df_list_intertweet = df_intertweet.groupby(df_intertweet.user_id).agg(
+        collect_list("time_intertweet").alias("lista_intertweet"))
+
+    df = df.join(df_list_intertweet, df["user.id"] == df_list_intertweet["user_id"])
 
     tweets_RDD = tweets_rdd(df)
 
