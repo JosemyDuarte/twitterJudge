@@ -1,6 +1,7 @@
 from __future__ import division
 from pyspark.sql import SQLContext, Row
-from pyspark.sql.functions import length
+from pyspark.sql.functions import udf, lag, length
+from pyspark.sql.window import Window
 from pyspark import SparkContext, StorageLevel
 from pyspark.conf import SparkConf
 from pyspark.mllib.linalg import SparseVector
@@ -328,6 +329,26 @@ def check_fuentes(x):
     return x
 
 
+month_map = {
+    'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6, 'Jul': 7,
+    'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+}
+
+
+def parse_time(s):
+    return "{0:04d}-{1:02d}-{2:02d} {3:02d}:{4:02d}:{5:02d}".format(
+        int(s[-4:]),
+        month_map[s[4:7]],
+        int(s[8:10]),
+        int(s[11:13]),
+        int(s[14:16]),
+        int(s[17:19])
+    )
+
+
+u_parse_time = udf(parse_time)
+
+
 def tweets_rdd(df):
     _tweets_rdd = df.map(lambda t: (t.user.id, (
         t.user.id,
@@ -343,7 +364,8 @@ def tweets_rdd(df):
         t.geo,
         t.lang,
         t.created_at,
-        t.place)))
+        t.place,
+        t.time_intertweet)))
 
     return _tweets_rdd
 
@@ -838,6 +860,10 @@ def timeline_features(sc, juez_spam, directorio):
     df.repartition(df.user.id)
 
     df = df.where(length(df.text) > 0)
+    df = df.select("*", u_parse_time(df['created_at']).cast('timestamp').alias('created_at_ts'))
+    df = df.withColumn("time_intertweet", (
+        df.created_at_ts.cast("bigint") - lag(df.created_at_ts.cast("bigint"), 1).over(
+            Window.partitionBy("user.id").orderBy("created_at_ts"))).cast("bigint"))
 
     tweets_RDD = tweets_rdd(df)
 
