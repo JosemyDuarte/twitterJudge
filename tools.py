@@ -905,79 +905,81 @@ def timeline_features(sc, juez_spam, directorio):
                        uso_mobil=t.mobil,
                        uso_terceros=t.terceros,
                        entropia=0,  # Entropia
-            diversidad_url=0,  # Diversidad
-            avg_spam=t.avg_spam,  # SPAM or not SPAM
-            safety_url=0)))  # Safety url
+                       diversidad_url=0,  # Diversidad
+                       avg_spam=t.avg_spam,  # SPAM or not SPAM
+                       safety_url=0)))  # Safety url
 
     logger.info("Finalizado el join...")
 
     return set_datos
 
 
-# TODO agregar user_id al resultado de la prediccion
+# TODO no permitir 2 veces el mismo usuario en Mongo
 # TODO pasar URI de mongo
 def evaluar(sc, juez_spam, juez_usuario, dir_timeline):
     features = timeline_features(sc, juez_spam, dir_timeline)
-    resultado = juez_usuario.predict(features.map(lambda t: (t.ano_registro,
-                                                             t.con_descripcion,
-                                                             t.con_geo_activo,
-                                                             t.con_imagen_default,
-                                                             t.con_imagen_fondo,
-                                                             t.con_perfil_verificado,
-                                                             t.followers_ratio,
-                                                             t.n_favoritos,
-                                                             t.n_listas,
-                                                             t.n_tweets,
-                                                             t.reputacion,
-                                                             t.url_ratio,
-                                                             t.avg_diversidad,
-                                                             t.avg_palabras,
-                                                             t.mention_ratio,
-                                                             t.avg_hashtags,
-                                                             t.reply_ratio,
-                                                             t.avg_long_tweets,
-                                                             t.avg_diversidad_lex,
-                                                             t.uso_lunes,
-                                                             t.uso_martes,
-                                                             t.uso_miercoles,
-                                                             t.uso_jueves,
-                                                             t.uso_viernes,
-                                                             t.uso_sabado,
-                                                             t.uso_domingo,
-                                                             t.hora_0,
-                                                             t.hora_1,
-                                                             t.hora_2,
-                                                             t.hora_3,
-                                                             t.hora_4,
-                                                             t.hora_5,
-                                                             t.hora_6,
-                                                             t.hora_7,
-                                                             t.hora_8,
-                                                             t.hora_9,
-                                                             t.hora_10,
-                                                             t.hora_11,
-                                                             t.hora_12,
-                                                             t.hora_13,
-                                                             t.hora_14,
-                                                             t.hora_15,
-                                                             t.hora_16,
-                                                             t.hora_17,
-                                                             t.hora_18,
-                                                             t.hora_19,
-                                                             t.hora_20,
-                                                             t.hora_21,
-                                                             t.hora_22,
-                                                             t.hora_23,
-                                                             t.uso_web,
-                                                             t.uso_mobil,
-                                                             t.uso_terceros,
-                                                             t.entropia,
-                                                             t.diversidad_url,
-                                                             t.avg_spam,
-                                                             t.safety_url)))
+    predicciones = juez_usuario.predict(features.map(lambda t: (t.ano_registro,
+                                                                t.con_descripcion,
+                                                                t.con_geo_activo,
+                                                                t.con_imagen_default,
+                                                                t.con_imagen_fondo,
+                                                                t.con_perfil_verificado,
+                                                                t.followers_ratio,
+                                                                t.n_favoritos,
+                                                                t.n_listas,
+                                                                t.n_tweets,
+                                                                t.reputacion,
+                                                                t.url_ratio,
+                                                                t.avg_diversidad,
+                                                                t.avg_palabras,
+                                                                t.mention_ratio,
+                                                                t.avg_hashtags,
+                                                                t.reply_ratio,
+                                                                t.avg_long_tweets,
+                                                                t.avg_diversidad_lex,
+                                                                t.uso_lunes,
+                                                                t.uso_martes,
+                                                                t.uso_miercoles,
+                                                                t.uso_jueves,
+                                                                t.uso_viernes,
+                                                                t.uso_sabado,
+                                                                t.uso_domingo,
+                                                                t.hora_0,
+                                                                t.hora_1,
+                                                                t.hora_2,
+                                                                t.hora_3,
+                                                                t.hora_4,
+                                                                t.hora_5,
+                                                                t.hora_6,
+                                                                t.hora_7,
+                                                                t.hora_8,
+                                                                t.hora_9,
+                                                                t.hora_10,
+                                                                t.hora_11,
+                                                                t.hora_12,
+                                                                t.hora_13,
+                                                                t.hora_14,
+                                                                t.hora_15,
+                                                                t.hora_16,
+                                                                t.hora_17,
+                                                                t.hora_18,
+                                                                t.hora_19,
+                                                                t.hora_20,
+                                                                t.hora_21,
+                                                                t.hora_22,
+                                                                t.hora_23,
+                                                                t.uso_web,
+                                                                t.uso_mobil,
+                                                                t.uso_terceros,
+                                                                t.entropia,
+                                                                t.diversidad_url,
+                                                                t.avg_spam,
+                                                                t.safety_url)))
 
-    resultado.saveToMongoDB('mongodb://mongo:27017/db.resultado')
+    id_y_prediccion = features.map(lambda t: t.user_id).zip(predicciones)
+
     features = features.map(lambda row: row.asDict())
+    id_y_prediccion.saveToMongoDB('mongodb://mongo:27017/db.resultado')
     features.saveToMongoDB('mongodb://mongo:27017/db.features')
-    # return resultado, features
+
     return True
