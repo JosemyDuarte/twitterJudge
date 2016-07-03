@@ -2,6 +2,7 @@ import os
 import logging, tools
 from pyspark.mllib.tree import RandomForest, RandomForestModel
 from pyspark.sql import SQLContext, Row, HiveContext
+import pymongo
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -82,4 +83,10 @@ class MotorClasificador:
 
     def inicializar_mongo(self, mongo_uri):
         self.mongo_uri = mongo_uri
+        client = pymongo.MongoClient(mongo_uri)
+        db = client["db"]
+        coleccionC = db["caracteristicas"]
+        # coleccionF = db["predicciones"]
+        coleccionC.ensure_index("createdAt", expireAfterSeconds=60)
+        client.close()
         return True

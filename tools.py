@@ -952,7 +952,8 @@ def timeline_features(sc, sql_context, juez_spam, directorio):
                        entropia=t.entropia,  # Entropia
                        diversidad_url=0,  # Diversidad
                        avg_spam=t.avg_spam,  # SPAM or not SPAM
-                       safety_url=0)))  # Safety url
+                       safety_url=0,  # Safety url
+                       createdAt=datetime.utcnow())))
 
     logger.info("Finalizado el join...")
 
@@ -1021,8 +1022,8 @@ def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri):
                                                                 t.safety_url)))
 
     id_y_prediccion = features.map(lambda t: t._id).zip(predicciones)
-    id_y_prediccion.saveToMongoDB(mongo_uri + ".predicciones")
+    id_y_prediccion.saveToMongoDB(mongo_uri + "db.predicciones")
     features = features.map(lambda row: row.asDict())
-    features.saveToMongoDB(mongo_uri + ".caracteristicas")
+    features.saveToMongoDB(mongo_uri + "db.caracteristicas")
 
     return True
