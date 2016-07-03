@@ -3,4 +3,10 @@ __pycache__
 datos
 *~
 *.pyc
-logs/*
+logs
+tmp
+metastore_db
+.ipython
+datos (copia)
+derby.log
+.bash_history
