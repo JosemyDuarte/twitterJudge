@@ -1,6 +1,7 @@
 import os
 import logging, tools
 from pyspark.mllib.tree import RandomForest, RandomForestModel
+from pyspark.sql import SQLContext, Row, HiveContext
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -20,12 +21,15 @@ class MotorClasificador:
         self.juez_timelines = None
         self.modelo_spam = None
         self.datos = None
+        self.mongo_uri = None
+        self.hive_context = HiveContext(sc)
         logger.info("Calentando motores...")
 
     def entrenar_spam(self, dir_spam, dir_no_spam):
 
         sc = self.sc
-        modelo = tools.entrenar_spam(sc, dir_spam, dir_no_spam)
+        hive_context = self.hive_context
+        modelo = tools.entrenar_spam(sc, hive_context, dir_spam, dir_no_spam)
         self.modelo_spam = modelo
 
         return True
@@ -39,10 +43,11 @@ class MotorClasificador:
     def entrenar_juez(self, directorio):
         sc = self.sc
         juez_spam = self.modelo_spam
+        hive_context = self.hive_context
 
         logger.info("Entrenando juez")
 
-        juez_timelines = tools.entrenar_juez(sc, juez_spam, directorio)
+        juez_timelines = tools.entrenar_juez(sc, hive_context, juez_spam, directorio)
 
         self.juez_timelines = juez_timelines
 
@@ -69,5 +74,12 @@ class MotorClasificador:
         sc = self.sc
         juez_timeline = self.juez_timelines
         juez_spam = self.modelo_spam
-        resultado = tools.evaluar(sc, juez_spam, juez_timeline, dir_timeline)
+        mongo_uri = self.mongo_uri
+        hive_context = self.hive_context
+
+        resultado = tools.evaluar(sc, hive_context, juez_spam, juez_timeline, dir_timeline, mongo_uri)
         return resultado
+
+    def inicializar_mongo(self, mongo_uri):
+        self.mongo_uri = mongo_uri
+        return True

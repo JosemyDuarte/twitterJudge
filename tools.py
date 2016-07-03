@@ -1,6 +1,7 @@
 from __future__ import division
-from pyspark.sql import SQLContext, Row
-from pyspark.sql.functions import length
+from pyspark.sql import Row, HiveContext
+from pyspark.sql.functions import udf, lag, length, collect_list
+from pyspark.sql.window import Window
 from pyspark import SparkContext, StorageLevel
 from pyspark.conf import SparkConf
 from pyspark.mllib.linalg import SparseVector
@@ -328,6 +329,23 @@ def check_fuentes(x):
     return x
 
 
+month_map = {
+    'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6, 'Jul': 7,
+    'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+}
+
+
+def parse_time(s):
+    return "{0:04d}-{1:02d}-{2:02d} {3:02d}:{4:02d}:{5:02d}".format(
+        int(s[-4:]),
+        month_map[s[4:7]],
+        int(s[8:10]),
+        int(s[11:13]),
+        int(s[14:16]),
+        int(s[17:19])
+    )
+
+
 def tweets_rdd(df):
     _tweets_rdd = df.map(lambda t: (t.user.id, (
         t.user.id,
@@ -343,7 +361,8 @@ def tweets_rdd(df):
         t.geo,
         t.lang,
         t.created_at,
-        t.place)))
+        t.place,
+    )))
 
     return _tweets_rdd
 
@@ -375,7 +394,8 @@ def usuario_rdd(df):
         t.user.has_extended_profile,  # 22
         t.user.profile_text_color,  # 23
         t.user.location,  # 24
-        t.user.url))).distinct()  # 25
+        t.user.url,  # 25
+        t.lista_intertweet)))  # 26
 
     return _usuarios_rdd
 
@@ -530,6 +550,25 @@ def avg_spam(juez, tweets):
     return _avg_spam
 
 
+def preparar_df(df):
+    df.repartition(df.user.id)
+
+    df = df.where(length(df.text) > 0)
+    u_parse_time = udf(parse_time)
+    df = df.select("*", u_parse_time(df['created_at']).cast('timestamp').alias('created_at_ts'))
+
+    df_intertweet = df.select(df.user.id.alias("user_id"), (
+        df.created_at_ts.cast('bigint') - lag(df.created_at_ts.cast('bigint'), ).over(
+            Window.partitionBy("user.id").orderBy("created_at_ts"))).cast("bigint").alias("time_intertweet"))
+
+    df_list_intertweet = df_intertweet.groupby(df_intertweet.user_id).agg(
+        collect_list("time_intertweet").alias("lista_intertweet"))
+
+    df = df.join(df_list_intertweet, df["user.id"] == df_list_intertweet["user_id"])
+
+    return df
+
+
 def get_final_url(url):
     try:
         resultado = requests.get(url, timeout=10)
@@ -590,9 +629,7 @@ def entropia_urls(directorio, urls=False):
     return entropia
 
 
-# TODO falta SPAM y entropia, diversidad url
-def tweets_features(_tweets_rdd, sc, juez):
-    sql_context = SQLContext(sc)
+def tweets_features(_tweets_rdd, sql_context, juez):
 
     logger.info("Calculando features para tweets...")
 
@@ -682,13 +719,15 @@ def usuarios_features(usuarios, categoria=-1):
                                                         t[1][2] + t[1][3] > 0) else 0),
                                                     n_tweets=t[1][6],
                                                     followers_ratio=(t[1][2] / t[1][3] if t[1][3] > 0 else 0),
+                                                    entropia=float(correc_cond_en(t[1][26][:110], len(t[1][26][:110]),
+                                                                                  int(np.ceil(
+                                                                                      np.log2(max(t[1][26][:110])))))),
                                                     categoria=categoria)).toDF()
 
     return _usuarios_features
 
 
-def entrenar_spam(sc, dir_spam, dir_no_spam, num_trees=3, max_depth=2):
-    sql_context = SQLContext(sc)
+def entrenar_spam(sc, sql_context, dir_spam, dir_no_spam, num_trees=3, max_depth=2):
 
     input_spam = sc.textFile(dir_spam)
     input_no_spam = sc.textFile(dir_no_spam)
@@ -713,36 +752,39 @@ def entrenar_spam(sc, dir_spam, dir_no_spam, num_trees=3, max_depth=2):
     return modelo
 
 
-# TODO agregar features faltantes (safety, diversidad url, entropia)
-def entrenar_juez(sc, juez_spam, directorio, num_trees=10, max_depth=5):
-    sql_context = SQLContext(sc)
+# TODO agregar features faltantes (safety, diversidad url)
+def entrenar_juez(sc, sql_context, juez_spam, directorio, num_trees=10, max_depth=5):
 
     timeline_humanos = sc.textFile(directorio["humanos"])
     timeline_bots = sc.textFile(directorio["bots"])
     timeline_ciborgs = sc.textFile(directorio["ciborgs"])
 
     df_humanos = sql_context.jsonRDD(timeline_humanos)
-    df_humanos.repartition(df_humanos.user.id)
+    df_humanos = preparar_df(df_humanos)
 
     df_bots = sql_context.jsonRDD(timeline_bots)
-    df_bots.repartition(df_bots.user.id)
+    df_bots = preparar_df(df_bots)
 
     df_ciborgs = sql_context.jsonRDD(timeline_ciborgs)
-    df_ciborgs.repartition(df_ciborgs.user.id)
+    df_ciborgs = preparar_df(df_ciborgs)
 
     tweets_RDD_humanos = tweets_rdd(df_humanos)
     tweets_RDD_bots = tweets_rdd(df_bots)
     tweets_RDD_ciborgs = tweets_rdd(df_ciborgs)
 
+    df_humanos = df_humanos.dropDuplicates(["user.id"])
+    df_bots = df_bots.dropDuplicates(["user.id"])
+    df_ciborgs = df_ciborgs.dropDuplicates(["user.id"])
+
     usuarios_RDD_humanos = usuario_rdd(df_humanos)
     usuarios_RDD_bots = usuario_rdd(df_bots)
     usuarios_RDD_ciborgs = usuario_rdd(df_ciborgs)
 
-    tweets_features_humanos = tweets_features(tweets_RDD_humanos, sc, juez_spam)
+    tweets_features_humanos = tweets_features(tweets_RDD_humanos, sql_context, juez_spam)
 
-    tweets_features_bots = tweets_features(tweets_RDD_bots, sc, juez_spam)
+    tweets_features_bots = tweets_features(tweets_RDD_bots, sql_context, juez_spam)
 
-    tweets_features_ciborgs = tweets_features(tweets_RDD_ciborgs, sc, juez_spam)
+    tweets_features_ciborgs = tweets_features(tweets_RDD_ciborgs, sql_context, juez_spam)
 
     usuarios_features_humanos = usuarios_features(usuarios_RDD_humanos, 0)
 
@@ -813,7 +855,7 @@ def entrenar_juez(sc, juez_spam, directorio, num_trees=10, max_depth=5):
                                    t.web,
                                    t.mobil,
                                    t.terceros,
-                                   0,
+                                   t.entropia,
                                    0,
                                    t.avg_spam,
                                    0
@@ -829,21 +871,20 @@ def entrenar_juez(sc, juez_spam, directorio, num_trees=10, max_depth=5):
     return modelo
 
 
-def timeline_features(sc, juez_spam, directorio):
-    timeline = sc.textFile(directorio)
-    sql_context = SQLContext(sc)
+def timeline_features(sc, sql_context, juez_spam, directorio):
 
+    timeline = sc.textFile(directorio)
     logger.info("Cargando arhcivos...")
     df = sql_context.jsonRDD(timeline)
-    df.repartition(df.user.id)
-
-    df = df.where(length(df.text) > 0)
+    df = preparar_df(df)
 
     tweets_RDD = tweets_rdd(df)
 
+    df = df.dropDuplicates(["user.id"])
+
     usuarios_RDD = usuario_rdd(df)
 
-    _tweets_features = tweets_features(tweets_RDD, sc, juez_spam)
+    _tweets_features = tweets_features(tweets_RDD, sql_context, juez_spam)
 
     _usuarios_features = usuarios_features(usuarios_RDD)
 
@@ -904,80 +945,80 @@ def timeline_features(sc, juez_spam, directorio):
                        uso_web=t.web,
                        uso_mobil=t.mobil,
                        uso_terceros=t.terceros,
-                       entropia=0,  # Entropia
-            diversidad_url=0,  # Diversidad
-            avg_spam=t.avg_spam,  # SPAM or not SPAM
-            safety_url=0)))  # Safety url
+                       entropia=t.entropia,  # Entropia
+                       diversidad_url=0,  # Diversidad
+                       avg_spam=t.avg_spam,  # SPAM or not SPAM
+                       safety_url=0)))  # Safety url
 
     logger.info("Finalizado el join...")
 
     return set_datos
 
 
-# TODO agregar user_id al resultado de la prediccion
-# TODO pasar URI de mongo
-def evaluar(sc, juez_spam, juez_usuario, dir_timeline):
-    features = timeline_features(sc, juez_spam, dir_timeline)
-    resultado = juez_usuario.predict(features.map(lambda t: (t.ano_registro,
-                                                             t.con_descripcion,
-                                                             t.con_geo_activo,
-                                                             t.con_imagen_default,
-                                                             t.con_imagen_fondo,
-                                                             t.con_perfil_verificado,
-                                                             t.followers_ratio,
-                                                             t.n_favoritos,
-                                                             t.n_listas,
-                                                             t.n_tweets,
-                                                             t.reputacion,
-                                                             t.url_ratio,
-                                                             t.avg_diversidad,
-                                                             t.avg_palabras,
-                                                             t.mention_ratio,
-                                                             t.avg_hashtags,
-                                                             t.reply_ratio,
-                                                             t.avg_long_tweets,
-                                                             t.avg_diversidad_lex,
-                                                             t.uso_lunes,
-                                                             t.uso_martes,
-                                                             t.uso_miercoles,
-                                                             t.uso_jueves,
-                                                             t.uso_viernes,
-                                                             t.uso_sabado,
-                                                             t.uso_domingo,
-                                                             t.hora_0,
-                                                             t.hora_1,
-                                                             t.hora_2,
-                                                             t.hora_3,
-                                                             t.hora_4,
-                                                             t.hora_5,
-                                                             t.hora_6,
-                                                             t.hora_7,
-                                                             t.hora_8,
-                                                             t.hora_9,
-                                                             t.hora_10,
-                                                             t.hora_11,
-                                                             t.hora_12,
-                                                             t.hora_13,
-                                                             t.hora_14,
-                                                             t.hora_15,
-                                                             t.hora_16,
-                                                             t.hora_17,
-                                                             t.hora_18,
-                                                             t.hora_19,
-                                                             t.hora_20,
-                                                             t.hora_21,
-                                                             t.hora_22,
-                                                             t.hora_23,
-                                                             t.uso_web,
-                                                             t.uso_mobil,
-                                                             t.uso_terceros,
-                                                             t.entropia,
-                                                             t.diversidad_url,
-                                                             t.avg_spam,
-                                                             t.safety_url)))
+# TODO no permitir 2 veces el mismo usuario en Mongo (da error si ya se encuentra categorizado)
+def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri):
+    features = timeline_features(sc, sql_context, juez_spam, dir_timeline)
+    predicciones = juez_usuario.predict(features.map(lambda t: (t.ano_registro,
+                                                                t.con_descripcion,
+                                                                t.con_geo_activo,
+                                                                t.con_imagen_default,
+                                                                t.con_imagen_fondo,
+                                                                t.con_perfil_verificado,
+                                                                t.followers_ratio,
+                                                                t.n_favoritos,
+                                                                t.n_listas,
+                                                                t.n_tweets,
+                                                                t.reputacion,
+                                                                t.url_ratio,
+                                                                t.avg_diversidad,
+                                                                t.avg_palabras,
+                                                                t.mention_ratio,
+                                                                t.avg_hashtags,
+                                                                t.reply_ratio,
+                                                                t.avg_long_tweets,
+                                                                t.avg_diversidad_lex,
+                                                                t.uso_lunes,
+                                                                t.uso_martes,
+                                                                t.uso_miercoles,
+                                                                t.uso_jueves,
+                                                                t.uso_viernes,
+                                                                t.uso_sabado,
+                                                                t.uso_domingo,
+                                                                t.hora_0,
+                                                                t.hora_1,
+                                                                t.hora_2,
+                                                                t.hora_3,
+                                                                t.hora_4,
+                                                                t.hora_5,
+                                                                t.hora_6,
+                                                                t.hora_7,
+                                                                t.hora_8,
+                                                                t.hora_9,
+                                                                t.hora_10,
+                                                                t.hora_11,
+                                                                t.hora_12,
+                                                                t.hora_13,
+                                                                t.hora_14,
+                                                                t.hora_15,
+                                                                t.hora_16,
+                                                                t.hora_17,
+                                                                t.hora_18,
+                                                                t.hora_19,
+                                                                t.hora_20,
+                                                                t.hora_21,
+                                                                t.hora_22,
+                                                                t.hora_23,
+                                                                t.uso_web,
+                                                                t.uso_mobil,
+                                                                t.uso_terceros,
+                                                                t.entropia,
+                                                                t.diversidad_url,
+                                                                t.avg_spam,
+                                                                t.safety_url)))
 
-    resultado.saveToMongoDB('mongodb://mongo:27017/db.resultado')
+    id_y_prediccion = features.map(lambda t: t.user_id).zip(predicciones)
+    id_y_prediccion.saveToMongoDB(mongo_uri + ".predicciones")
     features = features.map(lambda row: row.asDict())
-    features.saveToMongoDB('mongodb://mongo:27017/db.features')
-    # return resultado, features
+    features.saveToMongoDB(mongo_uri + ".caracteristicas")
+
     return True
