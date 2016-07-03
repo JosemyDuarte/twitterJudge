@@ -22,7 +22,9 @@ class MotorClasificador:
         self.juez_timelines = None
         self.modelo_spam = None
         self.datos = None
-        self.mongo_uri = None
+        self.mongodb_host = None
+        self.mongodb_port = None
+        self.mongodb_db = None
         self.hive_context = HiveContext(sc)
         logger.info("Calentando motores...")
 
@@ -75,18 +77,18 @@ class MotorClasificador:
         sc = self.sc
         juez_timeline = self.juez_timelines
         juez_spam = self.modelo_spam
-        mongo_uri = self.mongo_uri
+        mongo_uri = self.mongodb_host + ":" + self.mongodb_port + "/" + self.mongodb_db
         hive_context = self.hive_context
-
         resultado = tools.evaluar(sc, hive_context, juez_spam, juez_timeline, dir_timeline, mongo_uri)
         return resultado
 
-    def inicializar_mongo(self, mongo_uri):
-        self.mongo_uri = mongo_uri
-        client = pymongo.MongoClient(mongo_uri)
-        db = client["db"]
+    def inicializar_mongo(self, mongodb_host, mongodb_port, mongodb_db):
+        self.mongodb_host = mongodb_host
+        self.mongodb_port = mongodb_port
+        self.mongodb_db = mongodb_db
+        client = pymongo.MongoClient(mongodb_host+":"+mongodb_port)
+        db = client[mongodb_db]
         coleccionC = db["caracteristicas"]
-        # coleccionF = db["predicciones"]
         coleccionC.ensure_index("createdAt", expireAfterSeconds=60)
         client.close()
         return True

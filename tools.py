@@ -1021,9 +1021,7 @@ def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri):
                                                                 t.avg_spam,
                                                                 t.safety_url)))
 
-    id_y_prediccion = features.map(lambda t: t._id).zip(predicciones)
-    id_y_prediccion.saveToMongoDB(mongo_uri + "db.predicciones")
-    features = features.map(lambda row: row.asDict())
-    features.saveToMongoDB(mongo_uri + "db.caracteristicas")
+    features = features.zip(predicciones).map(lambda t: dict(t[0].asDict().items() + [("prediccion", t[1])]))
+    features.saveToMongoDB(mongo_uri + ".caracteristicas")
 
     return True

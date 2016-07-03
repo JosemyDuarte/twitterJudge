@@ -74,9 +74,13 @@ def cargar_spam():
 
 @main.route("/mongo_uri/", methods=["POST"])
 def mongo_uri():
-    _mongo_uri = request.json.get("mongodb_uri")
-    logger.debug("MongoDB URI a utilizar: %s", _mongo_uri)
-    resultado = motor_clasificador.inicializar_mongo(_mongo_uri)
+    mongodb_host = request.json.get("mongodb_host")
+    mongodb_port = request.json.get("mongodb_port")
+    mongodb_db = request.json.get("mongodb_db")
+    logger.debug("mongo_uri recibio host: %s", mongodb_host)
+    logger.debug("mongo_uri recibio puerto: %s", mongodb_port)
+    logger.debug("mongo_uri recibio bd: %s", mongodb_db)
+    resultado = motor_clasificador.inicializar_mongo(mongodb_host, mongodb_port, mongodb_db)
     return json.dumps(dict(resultado=resultado))
 
 @main.route("/evaluar/", methods=["POST"])
