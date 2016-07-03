@@ -21,7 +21,6 @@ class MotorClasificador:
         self.sc = sc
         self.juez_timelines = None
         self.modelo_spam = None
-        self.datos = None
         self.mongodb_host = None
         self.mongodb_port = None
         self.mongodb_db = None
@@ -72,7 +71,6 @@ class MotorClasificador:
         self.juez_timelines = RandomForestModel.load(self.sc, directorio)
         return True
 
-
     def evaluar(self, dir_timeline):
         sc = self.sc
         juez_timeline = self.juez_timelines
@@ -86,9 +84,9 @@ class MotorClasificador:
         self.mongodb_host = mongodb_host
         self.mongodb_port = mongodb_port
         self.mongodb_db = mongodb_db
-        client = pymongo.MongoClient(mongodb_host+":"+mongodb_port)
+        client = pymongo.MongoClient(mongodb_host + ":" + mongodb_port)
         db = client[mongodb_db]
-        coleccionC = db["caracteristicas"]
-        coleccionC.ensure_index("createdAt", expireAfterSeconds=60)
+        coleccion = db["caracteristicas"]
+        coleccion.ensure_index("createdAt", expireAfterSeconds=60)
         client.close()
         return True
