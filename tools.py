@@ -895,7 +895,7 @@ def timeline_features(sc, sql_context, juez_spam, directorio):
     logger.info("Realizando join de usuarios con tweets...")
 
     set_datos = _usuarios_features.join(_tweets_features, _tweets_features.user_id == _usuarios_features.user_id).map(
-        lambda t: (Row(_id=t.user_id,
+        lambda t: (Row(user_id=t.user_id,
                        ano_registro=t.ano_registro,
                        con_descripcion=t.con_descripcion,
                        con_geo_activo=t.con_geo_activo,
@@ -952,7 +952,8 @@ def timeline_features(sc, sql_context, juez_spam, directorio):
                        entropia=t.entropia,  # Entropia
                        diversidad_url=0,  # Diversidad
                        avg_spam=t.avg_spam,  # SPAM or not SPAM
-                       safety_url=0)))  # Safety url
+                       safety_url=0,  # Safety url
+                       createdAt=datetime.utcnow())))
 
     logger.info("Finalizado el join...")
 
@@ -1020,9 +1021,7 @@ def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri):
                                                                 t.avg_spam,
                                                                 t.safety_url)))
 
-    id_y_prediccion = features.map(lambda t: t._id).zip(predicciones)
-    id_y_prediccion.saveToMongoDB(mongo_uri + ".predicciones")
-    features = features.map(lambda row: row.asDict())
+    features = features.zip(predicciones).map(lambda t: dict(t[0].asDict().items() + [("prediccion", t[1])]))
     features.saveToMongoDB(mongo_uri + ".caracteristicas")
 
     return True

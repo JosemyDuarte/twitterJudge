@@ -2,6 +2,7 @@ import os
 import logging, tools
 from pyspark.mllib.tree import RandomForest, RandomForestModel
 from pyspark.sql import SQLContext, Row, HiveContext
+import pymongo
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -20,8 +21,9 @@ class MotorClasificador:
         self.sc = sc
         self.juez_timelines = None
         self.modelo_spam = None
-        self.datos = None
-        self.mongo_uri = None
+        self.mongodb_host = None
+        self.mongodb_port = None
+        self.mongodb_db = None
         self.hive_context = HiveContext(sc)
         logger.info("Calentando motores...")
 
@@ -69,17 +71,22 @@ class MotorClasificador:
         self.juez_timelines = RandomForestModel.load(self.sc, directorio)
         return True
 
-
     def evaluar(self, dir_timeline):
         sc = self.sc
         juez_timeline = self.juez_timelines
         juez_spam = self.modelo_spam
-        mongo_uri = self.mongo_uri
+        mongo_uri = self.mongodb_host + ":" + self.mongodb_port + "/" + self.mongodb_db
         hive_context = self.hive_context
-
         resultado = tools.evaluar(sc, hive_context, juez_spam, juez_timeline, dir_timeline, mongo_uri)
         return resultado
 
-    def inicializar_mongo(self, mongo_uri):
-        self.mongo_uri = mongo_uri
+    def inicializar_mongo(self, mongodb_host, mongodb_port, mongodb_db):
+        self.mongodb_host = mongodb_host
+        self.mongodb_port = mongodb_port
+        self.mongodb_db = mongodb_db
+        client = pymongo.MongoClient(mongodb_host + ":" + mongodb_port)
+        db = client[mongodb_db]
+        coleccion = db["caracteristicas"]
+        coleccion.ensure_index("createdAt", expireAfterSeconds=60)
+        client.close()
         return True
