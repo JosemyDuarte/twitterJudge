@@ -895,7 +895,7 @@ def timeline_features(sc, sql_context, juez_spam, directorio):
     logger.info("Realizando join de usuarios con tweets...")
 
     set_datos = _usuarios_features.join(_tweets_features, _tweets_features.user_id == _usuarios_features.user_id).map(
-        lambda t: (Row(_id=t.user_id,
+        lambda t: (Row(user_id=t.user_id,
                        ano_registro=t.ano_registro,
                        con_descripcion=t.con_descripcion,
                        con_geo_activo=t.con_geo_activo,
