@@ -891,7 +891,7 @@ def timeline_features(sc, sql_context, juez_spam, directorio):
     logger.info("Realizando join de usuarios con tweets...")
 
     set_datos = _usuarios_features.join(_tweets_features, _tweets_features.user_id == _usuarios_features.user_id).map(
-        lambda t: (Row(user_id=t.user_id,
+        lambda t: (Row(_id=t.user_id,
                        ano_registro=t.ano_registro,
                        con_descripcion=t.con_descripcion,
                        con_geo_activo=t.con_geo_activo,
@@ -1016,7 +1016,7 @@ def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri):
                                                                 t.avg_spam,
                                                                 t.safety_url)))
 
-    id_y_prediccion = features.map(lambda t: t.user_id).zip(predicciones)
+    id_y_prediccion = features.map(lambda t: t._id).zip(predicciones)
     id_y_prediccion.saveToMongoDB(mongo_uri + ".predicciones")
     features = features.map(lambda row: row.asDict())
     features.saveToMongoDB(mongo_uri + ".caracteristicas")
