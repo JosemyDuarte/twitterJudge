@@ -1,6 +1,6 @@
 from __future__ import division
 from pyspark.sql import Row, HiveContext
-from pyspark.sql.functions import udf, lag, length, collect_list
+from pyspark.sql.functions import udf, lag, length, collect_list, count, size
 from pyspark.sql.window import Window
 from pyspark import SparkContext, StorageLevel
 from pyspark.conf import SparkConf
@@ -518,6 +518,10 @@ def avg_diversidad(tweets):
             float(label_value[1][0]) / float(label_value[1][1])))).toDF().repartition("user_id")
 
     return _avg_diversidad
+
+
+def df_url_ratio(df):
+    return df.groupby(df.user.id).agg((sum(size(df.entities.urls)) / count(df.text)).alias("url_ratio"))
 
 
 def url_ratio(tweets):
