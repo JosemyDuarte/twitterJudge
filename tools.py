@@ -367,39 +367,6 @@ def tweets_rdd(df):
     return _tweets_rdd
 
 
-def usuario_rdd(df):
-    _usuarios_rdd = df.map(lambda t: (t.user.id, (
-        t.user.id,  # 0
-        t.user.default_profile_image,  # 1
-        t.user.followers_count,  # 2
-        t.user.friends_count,  # 3
-        t.user.verified,  # 4
-        t.user.listed_count,  # 5
-        t.user.statuses_count,  # 6
-        t.user.geo_enabled,  # 7
-        t.user.screen_name,  # 8
-        t.user.lang,  # 9
-        t.user.favourites_count,  # 10
-        t.user.created_at,  # 11
-        t.user.default_profile,  # 12
-        t.user.is_translator,  # 13
-        t.user.contributors_enabled,  # 14
-        t.user.is_translation_enabled,  # 15
-        t.user.description,  # 16
-        t.user.profile_use_background_image,  # 17
-        t.user.profile_background_tile,  # 18
-        t.user.profile_link_color,  # 19
-        t.user.profile_sidebar_border_color,  # 20
-        t.user.profile_background_color,  # 21
-        t.user.has_extended_profile,  # 22
-        t.user.profile_text_color,  # 23
-        t.user.location,  # 24
-        t.user.url,  # 25
-        t.lista_intertweet)))  # 26
-
-    return _usuarios_rdd
-
-
 def tweets_x_dia(tweets):
     _tweets_x_dia = tweets.map(
         lambda t: ((t[0], parser.parse(t[1][12]).strftime('%a')), 1)).reduceByKey(
@@ -634,7 +601,6 @@ def entropia_urls(directorio, urls=False):
 
 
 def tweets_features(_tweets_rdd, sql_context, juez):
-
     logger.info("Calculando features para tweets...")
 
     logger.info("Iniciando calculo de tweets por dia...")
@@ -708,31 +674,32 @@ def tweets_features(_tweets_rdd, sql_context, juez):
     return _tweets_features
 
 
-def usuarios_features(usuarios, categoria=-1):
+def usuarios_features(df, categoria=-1):
     logger.info("Calculando features para usuarios...")
-    _usuarios_features = usuarios.map(lambda t: Row(user_id=t[0],
-                                                    con_imagen_fondo=(1 if t[1][17] == True else 0),
-                                                    ano_registro=int(parser.parse(t[1][11]).strftime('%Y')),
-                                                    n_favoritos=t[1][10],
-                                                    con_descripcion=(1 if len(t[1][16]) > 0 else 0),
-                                                    con_perfil_verificado=(1 if t[1][4] == True else 0),
-                                                    con_imagen_default=(1 if t[1][1] == True else 0),
-                                                    n_listas=t[1][5],
-                                                    con_geo_activo=(1 if t[1][7] == True else 0),
-                                                    reputacion=(t[1][2] / (t[1][2] + t[1][3]) if t[1][2] or t[1][3] or (
-                                                        t[1][2] + t[1][3] > 0) else 0),
-                                                    n_tweets=t[1][6],
-                                                    followers_ratio=(t[1][2] / t[1][3] if t[1][3] > 0 else 0),
-                                                    entropia=float(correc_cond_en(t[1][26][:110], len(t[1][26][:110]),
-                                                                                  int(np.ceil(
-                                                                                      np.log2(max(t[1][26][:110])))))),
-                                                    categoria=categoria)).toDF()
+    _usuarios_features = df.map(lambda t: Row(
+        user_id=t.user.id,
+        con_imagen_fondo=(1 if t.user.profile_use_background_image == True else 0),
+        ano_registro=int(parser.parse(t.user.created_at).strftime('%Y')),
+        n_favoritos=t.user.favourites_count,
+        con_descripcion=(1 if len(t.user.description) > 0 else 0),
+        con_perfil_verificado=(1 if t.user.verified == True else 0),
+        con_imagen_default=(1 if t.user.default_profile_image == True else 0),
+        n_listas=t.user.listed_count,
+        con_geo_activo=(1 if t.user.geo_enabled == True else 0),
+        reputacion=(t.user.followers_count / (
+            t.user.followers_count + t.user.friends_count) if t.user.followers_count or t.user.friends_count or (
+            t.user.followers_count + t.user.friends_count > 0) else 0),
+        n_tweets=t.user.statuses_count,
+        followers_ratio=(t.user.followers_count / t.user.friends_count if t.user.friends_count > 0 else 0),
+        entropia=float(correc_cond_en(t.lista_intertweet[:110], len(t.lista_intertweet[:110]),
+                                      int(np.ceil(
+                                          np.log2(max(t.lista_intertweet[:110])))))),
+        categoria=categoria)).toDF()
 
     return _usuarios_features
 
 
 def entrenar_spam(sc, sql_context, dir_spam, dir_no_spam, num_trees=3, max_depth=2):
-
     input_spam = sc.textFile(dir_spam)
     input_no_spam = sc.textFile(dir_no_spam)
 
@@ -758,7 +725,6 @@ def entrenar_spam(sc, sql_context, dir_spam, dir_no_spam, num_trees=3, max_depth
 
 # TODO agregar features faltantes (safety, diversidad url)
 def entrenar_juez(sc, sql_context, juez_spam, directorio, num_trees=10, max_depth=5):
-
     timeline_humanos = sc.textFile(directorio["humanos"])
     timeline_bots = sc.textFile(directorio["bots"])
     timeline_ciborgs = sc.textFile(directorio["ciborgs"])
@@ -780,21 +746,13 @@ def entrenar_juez(sc, sql_context, juez_spam, directorio, num_trees=10, max_dept
     df_bots = df_bots.dropDuplicates(["user.id"])
     df_ciborgs = df_ciborgs.dropDuplicates(["user.id"])
 
-    usuarios_RDD_humanos = usuario_rdd(df_humanos)
-    usuarios_RDD_bots = usuario_rdd(df_bots)
-    usuarios_RDD_ciborgs = usuario_rdd(df_ciborgs)
-
     tweets_features_humanos = tweets_features(tweets_RDD_humanos, sql_context, juez_spam)
-
     tweets_features_bots = tweets_features(tweets_RDD_bots, sql_context, juez_spam)
-
     tweets_features_ciborgs = tweets_features(tweets_RDD_ciborgs, sql_context, juez_spam)
 
-    usuarios_features_humanos = usuarios_features(usuarios_RDD_humanos, 0)
-
-    usuarios_features_ciborgs = usuarios_features(usuarios_RDD_ciborgs, 1)
-
-    usuarios_features_bots = usuarios_features(usuarios_RDD_bots, 2)
+    usuarios_features_humanos = usuarios_features(df_humanos, 0)
+    usuarios_features_ciborgs = usuarios_features(df_bots, 1)
+    usuarios_features_bots = usuarios_features(df_ciborgs, 2)
 
     usuarios = usuarios_features_ciborgs.unionAll(usuarios_features_bots)
     usuarios = usuarios.unionAll(usuarios_features_humanos)
@@ -876,21 +834,16 @@ def entrenar_juez(sc, sql_context, juez_spam, directorio, num_trees=10, max_dept
 
 
 def timeline_features(sc, sql_context, juez_spam, directorio):
-
     timeline = sc.textFile(directorio)
     logger.info("Cargando arhcivos...")
     df = sql_context.jsonRDD(timeline)
     df = preparar_df(df)
 
     tweets_RDD = tweets_rdd(df)
-
-    df = df.dropDuplicates(["user.id"])
-
-    usuarios_RDD = usuario_rdd(df)
-
     _tweets_features = tweets_features(tweets_RDD, sql_context, juez_spam)
 
-    _usuarios_features = usuarios_features(usuarios_RDD)
+    df = df.dropDuplicates(["user.id"])
+    _usuarios_features = usuarios_features(df)
 
     logger.info("Realizando join de usuarios con tweets...")
 
@@ -960,7 +913,6 @@ def timeline_features(sc, sql_context, juez_spam, directorio):
     return set_datos
 
 
-# TODO no permitir 2 veces el mismo usuario en Mongo (da error si ya se encuentra categorizado)
 def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri):
     features = timeline_features(sc, sql_context, juez_spam, dir_timeline)
     predicciones = juez_usuario.predict(features.map(lambda t: (t.ano_registro,
