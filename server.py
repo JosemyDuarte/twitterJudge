@@ -1,21 +1,9 @@
 import time, sys, cherrypy, os
 from paste.translogger import TransLogger
 from app import create_app
-from pyspark import SparkContext
-from pyspark.conf import SparkConf
+
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
-
-
-def init_spark_context():
-    conf = SparkConf()
-    conf.setAppName('ExtraerCaracteristicas')
-
-    _sc = SparkContext(conf=conf, pyFiles=['engine.py',
-                                           'app.py',
-                                           'tools.py',
-                                           ])
-    return _sc
 
 
 def run_server(app):
@@ -40,7 +28,6 @@ def run_server(app):
 
 if __name__ == "__main__":
     # Init spark context and load libraries
-    sc = init_spark_context()
-    app = create_app(sc)
+    app = create_app()
     # start web server
     run_server(app)

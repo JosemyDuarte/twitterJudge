@@ -13,6 +13,24 @@ logging.basicConfig(filename="logs/engine.log", format='%(levelname)s:%(message)
 logger = logging.getLogger(__name__)
 
 
+@main.route("/inicializar_contexto/", methods=["POST"])
+def inicializar_contexto():
+    logger.debug("Iniciando SparkContext (sc)...")
+    req = request.json
+    if not req["app_name"]:
+        logging.error("No se especifico nombre para la aplicacion.")
+        return json.dumps(dict(resultado=False))
+    if not req["py_files"]:
+        logging.error("No se especificaron archivos para agregar al contexto.")
+        return json.dumps(dict(resultado=False))
+    logging.info("app_name: %s", req["app_name"])
+    global motor_clasificador
+    motor_clasificador = MotorClasificador()
+    resultado = motor_clasificador.inicializar_contexto(req["app_name"], req["py_files"])
+
+    return json.dumps(dict(resultado=resultado))
+
+
 @main.route("/entrenar_juez/", methods=["POST"])
 def entrenar_juez():
     """Realiza la carga del set de entrenamiento y genera el juez.
@@ -23,13 +41,13 @@ def entrenar_juez():
     directorio = request.json
     logging.info(directorio)
     if not directorio["bots"]:
-        logging.info("No se especifico la direccion de la carpeta para los bots")
+        logging.error("No se especifico la direccion de la carpeta para los bots")
         return json.dumps(dict(resultado=False))
     if not directorio["humanos"]:
-        logging.info("No se especifico la direccion de la carpeta para los humanos")
+        logging.error("No se especifico la direccion de la carpeta para los humanos")
         return json.dumps(dict(resultado=False))
     if not directorio["ciborgs"]:
-        logging.info("No se especifico la direccion de la carpeta para los ciborgs")
+        logging.error("No se especifico la direccion de la carpeta para los ciborgs")
         return json.dumps(dict(resultado=False))
 
     logger.debug("Ejecutando carga y entrenamiento")
@@ -91,7 +109,7 @@ def evaluar():
     return json.dumps(dict(resultado=resultado))
 
 
-@main.route("/cargar_spam/", methods=["POST"])
+"""@main.route("/cargar_spam/", methods=["POST"])
 def cargar_spam():
     directorio = request.json.get("directorio")
     logger.debug("Cargando juez de spam almacenado en: %s", directorio)
@@ -104,7 +122,7 @@ def cargar_juez():
     directorio = request.json.get("directorio")
     logger.debug("Cargando juez almacenado en: %s", directorio)
     resultado = motor_clasificador.cargar_juez(directorio)
-    return json.dumps(dict(resultado=resultado))
+    return json.dumps(dict(resultado=resultado))"""
 
 
 @main.route("/alive/", methods=["GET"])
@@ -112,11 +130,7 @@ def alive():
     return json.dumps(dict(resultado="I'm Alive!"))
 
 
-def create_app(spark_context):
-    global motor_clasificador
-
-    motor_clasificador = MotorClasificador(spark_context)
-
+def create_app():
     app = Flask(__name__)
     app.register_blueprint(main)
     return app

@@ -4,12 +4,8 @@ from pyspark.sql.functions import udf, lag, length, collect_list, count, size
 from pyspark.sql.window import Window
 from pyspark import SparkContext, StorageLevel
 from pyspark.conf import SparkConf
-from pyspark.mllib.linalg import SparseVector
-from pyspark.mllib.regression import LabeledPoint
 from pyspark.mllib.tree import RandomForest, RandomForestModel
-from pyspark.mllib.util import MLUtils
 # from pyspark.mllib.classification import NaiveBayes, NaiveBayesModel
-from pyspark.mllib.linalg import Vectors
 from pyspark.mllib.regression import LabeledPoint
 # from pyspark.mllib.classification import LogisticRegressionWithSGD
 from pyspark.mllib.feature import HashingTF
@@ -30,6 +26,21 @@ pymongo_spark.activate()
 
 # logging.basicConfig(filename="logs/engine.log", format='%(levelname)s:%(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def iniciar_spark_context(app_name, py_files):
+    if not app_name:
+        app_name = "ExtraerCaracteristicas"
+    if not py_files:
+        py_files = ['engine.py', 'app.py', 'tools.py']
+    conf = SparkConf()
+    conf.setAppName(app_name)
+    _sc = SparkContext(conf=conf, pyFiles=py_files)
+    return _sc
+
+
+def hive_context(sc):
+    return HiveContext(sc)
 
 
 def quantize(signal, partitions, codebook):
@@ -210,7 +221,7 @@ def fuente(source):
 
 
 def merge_two_dicts(x, y):
-    '''Given two dicts, merge them into a new dict as a shallow copy.'''
+    """Given two dicts, merge them into a new dict as a shallow copy."""
     z = x.copy()
     z.update(y)
     return z

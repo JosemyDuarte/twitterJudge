@@ -1,7 +1,5 @@
 import os
 import logging, tools
-from pyspark.mllib.tree import RandomForest, RandomForestModel
-from pyspark.sql import SQLContext, Row, HiveContext
 import pymongo
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -14,18 +12,24 @@ class MotorClasificador:
     """Motor del clasificador de cuentas
     """
 
-    def __init__(self, sc):
+    def __init__(self):
         """Inicializa el SparkContext
         """
 
-        self.sc = sc
+        self.sc = None
         self.juez_timelines = None
         self.modelo_spam = None
         self.mongodb_host = None
         self.mongodb_port = None
         self.mongodb_db = None
-        self.hive_context = HiveContext(sc)
+        self.hive_context = None
         logger.info("Calentando motores...")
+
+    def inicializar_contexto(self, app_name, py_files):
+        self.sc = tools.iniciar_spark_context(app_name, py_files)
+        self.hive_context = tools.hive_context(self.sc)
+
+        return True
 
     def entrenar_spam(self, dir_spam, dir_no_spam):
 
@@ -33,12 +37,6 @@ class MotorClasificador:
         hive_context = self.hive_context
         modelo = tools.entrenar_spam(sc, hive_context, dir_spam, dir_no_spam)
         self.modelo_spam = modelo
-
-        return True
-
-    def cargar_spam(self, directorio):
-
-        self.modelo_spam = RandomForestModel.load(self.sc, directorio)
 
         return True
 
@@ -57,6 +55,11 @@ class MotorClasificador:
 
         return True
 
+    """def cargar_spam(self, directorio):
+        self.modelo_spam = RandomForestModel.load(self.sc, directorio)
+
+        return True
+
     def guardar_juez(self, directorio):
         sc = self.sc
         modelo = self.juez_timelines
@@ -69,7 +72,7 @@ class MotorClasificador:
 
     def cargar_juez(self, directorio):
         self.juez_timelines = RandomForestModel.load(self.sc, directorio)
-        return True
+        return True"""
 
     def evaluar(self, dir_timeline):
         sc = self.sc
