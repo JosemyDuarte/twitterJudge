@@ -88,13 +88,18 @@ def mongo_uri():
     if not request.json.get("mongodb_db"):
         logging.error("No se especifico el parametro 'mongodb_db' para mongodb")
         return json.dumps(dict(resultado=False))
+    if not request.json.get("mongodb_ttl"):
+        logging.error("No se especifico el parametro 'ttl' para mongodb")
+        return json.dumps(dict(resultado=False))
     mongodb_host = request.json.get("mongodb_host")
     mongodb_port = request.json.get("mongodb_port")
     mongodb_db = request.json.get("mongodb_db")
-    logger.debug("mongo_uri recibio host: %s", mongodb_host)
-    logger.debug("mongo_uri recibio puerto: %s", mongodb_port)
-    logger.debug("mongo_uri recibio bd: %s", mongodb_db)
-    resultado = motor_clasificador.inicializar_mongo(mongodb_host, mongodb_port, mongodb_db)
+    mongodb_ttl = request.json.get("mongodb_ttl")
+    logger.info("mongo_uri recibio host: %s", mongodb_host)
+    logger.info("mongo_uri recibio puerto: %s", mongodb_port)
+    logger.info("mongo_uri recibio bd: %s", mongodb_db)
+    logger.info("mongo_uri recibio ttl: %s", mongodb_ttl)
+    resultado = motor_clasificador.inicializar_mongo(mongodb_host, mongodb_port, mongodb_db, mongodb_ttl)
     return json.dumps(dict(resultado=resultado))
 
 

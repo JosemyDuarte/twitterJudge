@@ -83,13 +83,13 @@ class MotorClasificador:
         resultado = tools.evaluar(sc, hive_context, juez_spam, juez_timeline, dir_timeline, mongo_uri)
         return resultado
 
-    def inicializar_mongo(self, mongodb_host, mongodb_port, mongodb_db):
+    def inicializar_mongo(self, mongodb_host, mongodb_port, mongodb_db, mongodb_ttl):
         self.mongodb_host = mongodb_host
         self.mongodb_port = mongodb_port
         self.mongodb_db = mongodb_db
         client = pymongo.MongoClient(mongodb_host + ":" + mongodb_port)
         db = client[mongodb_db]
         coleccion = db["caracteristicas"]
-        coleccion.ensure_index("createdAt", expireAfterSeconds=60)
+        coleccion.ensure_index("createdAt", expireAfterSeconds=mongodb_ttl)
         client.close()
         return True
