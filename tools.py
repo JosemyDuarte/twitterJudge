@@ -705,6 +705,7 @@ def usuarios_features(df, categoria=-1):
         entropia=float(correc_cond_en(t.lista_intertweet[:110], len(t.lista_intertweet[:110]),
                                       int(np.ceil(
                                           np.log2(max(t.lista_intertweet[:110])))))),
+        nombre_usuario=t.user.screen_name,
         categoria=categoria)).toDF()
 
     return _usuarios_features
@@ -917,7 +918,8 @@ def timeline_features(sc, sql_context, juez_spam, directorio):
                        diversidad_url=0,  # Diversidad
                        avg_spam=t.avg_spam,  # SPAM or not SPAM
                        safety_url=0,  # Safety url
-                       createdAt=datetime.utcnow())))
+                       createdAt=datetime.utcnow(),
+                       nombre_usuario=t.nombre_usuario)))
 
     logger.info("Finalizado el join...")
 
