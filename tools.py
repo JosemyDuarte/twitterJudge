@@ -927,7 +927,7 @@ def timeline_features(sc, sql_context, juez_spam, directorio):
 
 
 def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri):
-    features = timeline_features(sc, sql_context, juez_spam, dir_timeline)
+    features = timeline_features(sc, sql_context, juez_spam, dir_timeline).cache()
     predicciones = juez_usuario.predict(features.map(lambda t: (t.ano_registro,
                                                                 t.con_descripcion,
                                                                 t.con_geo_activo,
@@ -986,7 +986,7 @@ def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri):
                                                                 t.avg_spam,
                                                                 t.safety_url)))
 
-    features = features.zip(predicciones).map(lambda t: dict(t[0].asDict().items() + [("prediccion", t[1])]))
+    features = features.zip(predicciones).map(lambda t: dict(t[0].asDict().items() + [("prediccion", t[1])])).cache()
     features.saveToMongoDB(mongo_uri + ".caracteristicas")
 
-    return True
+    return features.map(lambda t: t["user_id"]).collect()
