@@ -5,9 +5,7 @@ from pyspark.sql.window import Window
 from pyspark import SparkContext, StorageLevel
 from pyspark.conf import SparkConf
 from pyspark.mllib.tree import RandomForest, RandomForestModel
-# from pyspark.mllib.classification import NaiveBayes, NaiveBayesModel
 from pyspark.mllib.regression import LabeledPoint
-# from pyspark.mllib.classification import LogisticRegressionWithSGD
 from pyspark.mllib.feature import HashingTF
 from datetime import datetime
 from dateutil import parser
@@ -88,10 +86,10 @@ def pattern_mat(x, m):
         return patterns
 
 
-def en_shannon(series, L, num_int):
+def en_shannon(series, l, num_int):
     if not series:
         raise ValueError("No hay serie definida")
-    if not L:
+    if not l:
         raise ValueError("No hay dimension (L) definida")
     if not num_int:
         raise ValueError("num_int sin definir")
@@ -107,14 +105,14 @@ def en_shannon(series, L, num_int):
     quants = [0 if x == -1 else x for x in quants]
     N = len(quants)
     # We compose the patterns of length 'L':
-    X = pattern_mat(quants, L)
+    X = pattern_mat(quants, l)
     # We get the number of repetitions of each pattern:
-    num = np.ones(N - L + 1)
+    num = np.ones(N - l + 1)
     # This loop goes over the columns of 'X':
-    if L == 1:
+    if l == 1:
         X = np.atleast_2d(X)
-    for j in range(0, N - L + 1):
-        for i2 in range(j + 1, N - L + 1):
+    for j in range(0, N - l + 1):
+        for i2 in range(j + 1, N - l + 1):
             tmp = [0 if x == -1 else 1 for x in X[:, j]]
             if (tmp[0] == 1) and (X[:, j] == X[:, i2]).all():
                 num[j] += 1
@@ -133,63 +131,63 @@ def en_shannon(series, L, num_int):
     # We get the number of patterns which have appeared only once:
     unique = sum(new_num[new_num == 1])
     # We compute the probability of each pattern:
-    p_i = new_num / (N - L + 1)
+    p_i = new_num / (N - l + 1)
     # Finally, the Shannon Entropy is computed as:
-    SE = np.dot((- 1) * p_i, (np.log(p_i)))
+    SE = np.dot((- 1) * p_i, np.log(p_i))
 
     return SE, unique
 
 
-def cond_en(series, L, num_int):
+def cond_en(series, l, num_int):
     if not series:
         raise ValueError("No hay serie definida")
-    if not L:
+    if not l:
         raise ValueError("No hay dimension (L) definida")
     if not num_int:
         raise ValueError("num_int sin definir")
     # Processing:
     # First, we call the Shannon Entropy function:
     # 'L' as embedding dimension:
-    SE, unique = en_shannon(series, L, num_int)
+    SE, unique = en_shannon(series, l, num_int)
     # 'L-1' as embedding dimension:
-    SE_1, _ = en_shannon(series, L - 1, num_int)
+    SE_1, _ = en_shannon(series, l - 1, num_int)
     # The Conditional Entropy is defined as a differential entropy:
     CE = SE - SE_1
     return CE, unique
 
 
-def correc_cond_en(series, Lmax, num_int):
+def correc_cond_en(series, lmax, num_int):
     if not series:
         raise ValueError("No hay serie definida")
-    if not Lmax:
+    if not lmax:
         raise ValueError("No hay dimension (L) definida")
     if not num_int:
         raise ValueError("num_int sin definir")
     N = len(series)
     # We will use this for the correction term: (L=1)
-    E_est_1, _ = en_shannon(series, 1, num_int)
+    e_est_1, _ = en_shannon(series, 1, num_int)
     # Incializacin de la primera posicin del vector que almacena la CCE a un
     # numero elevado para evitar que se salga del bucle en L=2 (primera
     # iteracin):
     # CCE is a vector that will contian the several CCE values computed:
-    CCE = sys.maxsize * np.ones(Lmax + 1)
+    CCE = sys.maxsize * np.ones(lmax + 1)
     CCE[0] = 100
-    CE = np.ones(Lmax + 1)
-    uniques = np.ones(Lmax + 1)
-    correc_term = np.ones(Lmax + 1)
-    for L in range(2, Lmax + 1):
+    CE = np.ones(lmax + 1)
+    uniques = np.ones(lmax + 1)
+    correc_term = np.ones(lmax + 1)
+    for L in range(2, lmax + 1):
         # First, we compute the CE for the current embedding dimension: ('L')
         CE[L], uniques[L] = cond_en(series, L, num_int)
         # Second, we compute the percentage of patterns which are not repeated:
-        perc_L = uniques[L] / (N - L + 1)
-        correc_term[L] = perc_L * E_est_1
+        perc_l = uniques[L] / (N - L + 1)
+        correc_term[L] = perc_l * e_est_1
         # Third, the CCE is the CE plus the correction term:
         CCE[L] = CE[L] + correc_term[L]
 
     # Finally, the best estimation of the CCE is the minimum value of all the
     # CCE that have been computed:
-    CCE_min = min(CCE)
-    return CCE_min
+    cce_min = min(CCE)
+    return cce_min
 
 
 def lexical_diversity(text):
@@ -201,20 +199,15 @@ def lexical_diversity(text):
 
 
 def fuente(source):
+
+    mobil = ["http://twitter.com/download/android", "Twitter f, Android", "http://blackberry.com/twitter",
+             "Twitter f, BlackBerry", "https://mobile.twitter.com", "Mobile Web", "http://twitter.com/download/iphone",
+             "iOS", "http://twitter.com/#!/download/ipad", "Huawei Social Phone", "Windows Phone",
+             "Twitter f, Nokia S40"]
+
     if "Twitter Web Client" in source:
         return 'web'
-    elif "http://twitter.com/download/android" in source or "Twitter for Android" in source:
-        return 'mobil'
-    elif "http://blackberry.com/twitter" in source or "Twitter for BlackBerry" in source:
-        return 'mobil'
-    elif "https://mobile.twitter.com" in source or "Mobile Web" in source:
-        return 'mobil'
-    elif "http://twitter.com/download/iphone" in source or (
-                    "http://www.apple.com" in source and "iOS" in source) or "http://twitter.com/#!/download/ipad" in source:
-        return 'mobil'
-    elif "Huawei Social Phone" in source:
-        return 'mobil'
-    elif "Windows Phone" in source or "Twitter for Nokia S40" in source:
+    elif any(string in source for string in mobil):
         return 'mobil'
     else:
         return 'terceros'
@@ -592,10 +585,9 @@ def intertweet_urls(directorio):
             while i + 1 != len(lines) and i < 110:
                 tweet = (json.loads(lines[i]), json.loads(lines[i + 1]))
                 i += 1
-                if i <= 110:
-                    date = (parser.parse(tweet[0]['created_at']), parser.parse(tweet[1]['created_at']))
-                    lista_intertweet.append(abs((date[1] - date[0]).total_seconds()))
-                if tweet[0]['entities']['urls'] and tweet[0]['entities']['urls'][0]:
+                date = (parser.parse(tweet[0]['created_at']), parser.parse(tweet[1]['created_at']))
+                lista_intertweet.append(abs((date[1] - date[0]).total_seconds()))
+                if tweet[0]['entities']['urls'][0]:
                     lista_urls.append(tweet[0]['entities']['urls'])
     return json.dumps(
         dict(intertweet_delay=lista_intertweet, user_id=json.loads(lines[0])["user"]["id"], urls=lista_urls))
@@ -689,19 +681,19 @@ def usuarios_features(df, categoria=-1):
     logger.info("Calculando features para usuarios...")
     _usuarios_features = df.map(lambda t: Row(
         user_id=t.user.id,
-        con_imagen_fondo=(1 if t.user.profile_use_background_image == True else 0),
+        con_imagen_fondo=1 if t.user.profile_use_background_image == True else 0,
         ano_registro=int(parser.parse(t.user.created_at).strftime('%Y')),
         n_favoritos=t.user.favourites_count,
-        con_descripcion=(1 if len(t.user.description) > 0 else 0),
-        con_perfil_verificado=(1 if t.user.verified == True else 0),
-        con_imagen_default=(1 if t.user.default_profile_image == True else 0),
+        con_descripcion=1 if len(t.user.description) > 0 else 0,
+        con_perfil_verificado=1 if t.user.verified == True else 0,
+        con_imagen_default=1 if t.user.default_profile_image == True else 0,
         n_listas=t.user.listed_count,
-        con_geo_activo=(1 if t.user.geo_enabled == True else 0),
-        reputacion=(t.user.followers_count / (
+        con_geo_activo=1 if t.user.geo_enabled == True else 0,
+        reputacion=t.user.followers_count / (
             t.user.followers_count + t.user.friends_count) if t.user.followers_count or t.user.friends_count or (
-            t.user.followers_count + t.user.friends_count > 0) else 0),
+            t.user.followers_count + t.user.friends_count > 0) else 0,
         n_tweets=t.user.statuses_count,
-        followers_ratio=(t.user.followers_count / t.user.friends_count if t.user.friends_count > 0 else 0),
+        followers_ratio=t.user.followers_count / t.user.friends_count if t.user.friends_count > 0 else 0,
         entropia=float(correc_cond_en(t.lista_intertweet[:110], len(t.lista_intertweet[:110]),
                                       int(np.ceil(
                                           np.log2(max(t.lista_intertweet[:110])))))),
@@ -769,9 +761,7 @@ def entrenar_juez(sc, sql_context, juez_spam, directorio, num_trees=10, max_dept
     usuarios = usuarios.unionAll(usuarios_features_humanos)
     # usuarios.cache()
 
-
-
-    labeledPoint = usuarios.join(tweets, tweets.user_id == usuarios.user_id).map(
+    labeled_point = usuarios.join(tweets, tweets.user_id == usuarios.user_id).map(
         lambda t: LabeledPoint(t.categoria,
                                [
                                    t.ano_registro,
@@ -833,12 +823,8 @@ def entrenar_juez(sc, sql_context, juez_spam, directorio, num_trees=10, max_dept
                                    0
                                ])).cache()
 
-    modelo = RandomForest.trainClassifier(labeledPoint, numClasses=3, categoricalFeaturesInfo={}, numTrees=num_trees,
+    modelo = RandomForest.trainClassifier(labeled_point, numClasses=3, categoricalFeaturesInfo={}, numTrees=num_trees,
                                           featureSubsetStrategy="auto", impurity='gini', maxDepth=max_depth, maxBins=32)
-
-    """modelo = RandomForest.trainRegressor(labeledPoint, categoricalFeaturesInfo={},
-                                         numTrees=num_trees, featureSubsetStrategy="auto",
-                                         impurity='variance', maxDepth=max_depth, maxBins=32)"""
 
     return modelo
 

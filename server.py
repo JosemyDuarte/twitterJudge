@@ -1,10 +1,11 @@
 import time, sys, cherrypy, os
 from paste.translogger import TransLogger
 from app import create_app
-
+import ConfigParser
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
-
+configParser = ConfigParser.RawConfigParser()
+configParser.read("config.ini")
 
 def run_server(app):
     # Enable WSGI access logging via Paste
@@ -17,8 +18,8 @@ def run_server(app):
     cherrypy.config.update({
         'engine.autoreload.on': True,
         'log.screen': True,
-        'server.socket_port': 5433,
-        'server.socket_host': '0.0.0.0'
+        'server.socket_port': int(configParser.get("server", "port")),
+        'server.socket_host': configParser.get("server", "host")
     })
 
     # Start the CherryPy WSGI web server

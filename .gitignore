@@ -10,3 +10,6 @@ metastore_db
 datos (copia)
 derby.log
 .bash_history
+.sonar
+.ipynb_checkpoints
+sonar-project.properties
