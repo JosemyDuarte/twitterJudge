@@ -7,6 +7,7 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 configParser = ConfigParser.RawConfigParser()
 configParser.read("config.ini")
 
+
 def run_server(app):
     # Enable WSGI access logging via Paste
     app_logged = TransLogger(app)
