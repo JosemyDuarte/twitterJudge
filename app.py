@@ -85,8 +85,8 @@ def evaluar():
     Requiere de la especificacion del directorio que contiene los timelines
     Returns
     -------
-    resultado : bool
-        Booleano que sera True en caso de ejecutarse exitosamente
+    resultado : diccionario
+        Sera False, en caso de error. Contendra el id de los usuarios evaluados.
     Examples
     --------
     > curl -H "Content-Type: application/json" -X POST -d
