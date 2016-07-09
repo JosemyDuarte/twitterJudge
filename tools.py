@@ -28,7 +28,7 @@ pymongo_spark.activate()
 logger = logging.getLogger(__name__)
 
 
-def iniciar_spark_context(app_name, py_files):
+def iniciar_spark_context(app_name=None, py_files=None):
     if not app_name:
         app_name = "ExtraerCaracteristicas"
     if not py_files:
@@ -972,6 +972,6 @@ def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri):
                                                                 t.safety_url)))
 
     features = features.zip(predicciones).map(lambda t: dict(t[0].asDict().items() + [("prediccion", t[1])])).cache()
-    features.saveToMongoDB(mongo_uri + ".caracteristicas")
+    features.saveToMongoDB(mongo_uri)
 
     return features.map(lambda t: t["user_id"]).collect()
