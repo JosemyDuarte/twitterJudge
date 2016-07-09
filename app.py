@@ -27,7 +27,7 @@ def entrenar_juez():
     Examples
     --------
     > curl -H "Content-Type: application/json" -X POST -d
-        '{"bots":"/carpeta/con/bots","humanos":"/carpeta/con/humanos","ciborgs":"/home/jovyan/work/datos/datos_cat/ciborg"}'
+        '{"bots":"/carpeta/con/bots","humanos":"/carpeta/con/humanos","ciborgs":"/carpeta/con/ciborg"}'
          http://[host]:[port]/entrenar_juez/
     """
     logger.debug("Iniciando carga inicial...")

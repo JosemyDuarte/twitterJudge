@@ -18,7 +18,7 @@ class MotorClasificador:
     """
 
     def __init__(self):
-        """Inicializa el SparkContext
+        """Inicializa el SparkContext, SqlContext y MongoDB
         """
         logger.info("Calentando motores...")
         self.sc = tools.iniciar_spark_context(app_name=configParser.get("spark", "name"))
@@ -36,6 +36,23 @@ class MotorClasificador:
         client.close()
 
     def entrenar_spam(self, dir_spam, dir_no_spam):
+        """
+            Entrena el juez que clasifica los tweets spam
+            Parameters
+            ----------
+            dir_spam : str
+                Direccion en la que se encuentra el archivo de entrenamiento para SPAM
+            dir_no_spam : str
+                Direccion en la que se encuentra el archivo de entrenamiento para NoSPAM
+            Returns
+            -------
+            True : True
+                En caso de ejecucion sin problemas, True sera retornado.
+            Examples
+            --------
+            > entrenar_spam("/archivo/spam","/archivo/nospam")
+            > entrenar_spam("hdfs://[host]:[port]/archivo/spam","hdfs://[host]:[port]/archivo/nospam")
+            """
         sc = self.sc
         hive_context = self.hive_context
         modelo = tools.entrenar_spam(sc, hive_context, dir_spam, dir_no_spam)
@@ -44,11 +61,25 @@ class MotorClasificador:
         return True
 
     def entrenar_juez(self, directorio):
+        """
+            Entrena el juez que clasifica los tweets spam
+            Parameters
+            ----------
+            directorio : diccionario
+                Diccionario con los directorios que contienen los sets de entrenamiento
+            Returns
+            -------
+            True : True
+                En caso de ejecucion sin problemas, True sera retornado.
+            Examples
+            --------
+            > entrenar_juez('{"bots":"/carpeta/bots","humanos":"/carpeta/humanos","ciborgs":"/carpeta/ciborg"}')
+            """
         sc = self.sc
         juez_spam = self.modelo_spam
         hive_context = self.hive_context
 
-        logger.info("Entrenando juez")
+        logger.info("Entrenando juez...")
 
         juez_timelines = tools.entrenar_juez(sc, hive_context, juez_spam, directorio)
 
@@ -59,6 +90,20 @@ class MotorClasificador:
         return True
 
     def evaluar(self, dir_timeline):
+        """
+            Evalua y clasifica los timelines
+            Parameters
+            ----------
+            dir_timeline : str
+                Direccion en la que se encuentran los timelines a clasificar
+            Returns
+            -------
+            Resultado : [int, ] list
+                Retorna los IDs de los usuarios evaluados
+            Examples
+            --------
+            > evaluar('{"directorio":"/carpeta/con/timelines/*"}')
+            """
         sc = self.sc
         juez_timeline = self.juez_timelines
         juez_spam = self.modelo_spam
