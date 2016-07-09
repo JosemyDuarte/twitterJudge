@@ -3,7 +3,10 @@ import os
 import tools
 
 import pymongo
+import ConfigParser
 
+configParser = ConfigParser.RawConfigParser()
+configParser.read("config.ini")
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # logging.basicConfig(filename="logs/engine.log", format='%(levelname)s:%(message)s', level=logging.INFO)
@@ -30,7 +33,14 @@ class MotorClasificador:
     def inicializar_contexto(self, app_name, py_files):
         self.sc = tools.iniciar_spark_context(app_name, py_files)
         self.hive_context = tools.hive_context(self.sc)
-
+        self.mongodb_host = "mongodb://" + configParser.get("database", "host")
+        self.mongodb_port = configParser.get("database", "port")
+        self.mongodb_db = configParser.get("database", "db")
+        client = pymongo.MongoClient(self.mongodb_host + ":" + self.mongodb_port)
+        db = client[self.mongodb_db]
+        coleccion = db["caracteristicas"]
+        coleccion.ensure_index("createdAt", expireAfterSeconds=configParser.get("database", "ttl"))
+        client.close()
         return True
 
     def entrenar_spam(self, dir_spam, dir_no_spam):

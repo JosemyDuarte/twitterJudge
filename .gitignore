@@ -13,3 +13,9 @@ derby.log
 .sonar
 .ipynb_checkpoints
 sonar-project.properties
+_build
+_static
+_templates
+conf.py
+index.rst
+Makefile
