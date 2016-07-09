@@ -1,23 +1,25 @@
 from __future__ import division
+
+import json
+import logging
+import math
+import os
+import sys
+import urlparse
+from datetime import datetime
+
+import numpy as np
+import pymongo_spark
+import requests
+from dateutil import parser
+from pyspark import SparkContext
+from pyspark.conf import SparkConf
+from pyspark.mllib.feature import HashingTF
+from pyspark.mllib.regression import LabeledPoint
+from pyspark.mllib.tree import RandomForest
 from pyspark.sql import Row, HiveContext
 from pyspark.sql.functions import udf, lag, length, collect_list, count, size
 from pyspark.sql.window import Window
-from pyspark import SparkContext, StorageLevel
-from pyspark.conf import SparkConf
-from pyspark.mllib.tree import RandomForest, RandomForestModel
-from pyspark.mllib.regression import LabeledPoint
-from pyspark.mllib.feature import HashingTF
-from datetime import datetime
-from dateutil import parser
-import json
-import numpy as np
-import math
-import sys
-import os
-import logging
-import requests
-import urlparse
-import pymongo_spark
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 pymongo_spark.activate()
@@ -55,34 +57,34 @@ def quantize(signal, partitions, codebook):
 
 def pattern_mat(x, m):
     """
-	Construct a matrix of `m`-length segments of `x`.
-	Parameters
-	----------
-	x : (N, ) array_like
-		Array of input data.
-	m : int
-		Length of segment. Must be at least 1. In the case that `m` is 1, the
-		input array is returned.
-	Returns
-	-------
-	patterns : (m, N-m+1)
-		Matrix whose first column is the first `m` elements of `x`, the second
-		column is `x[1:m+1]`, etc.
-	Examples
-	--------
-	> p = pattern_mat([1, 2, 3, 4, 5, 6, 7], 3])
-	array([[ 1.,  2.,  3.,	4.,	 5.],
-		   [ 2.,  3.,  4.,	5.,	 6.],
-		   [ 3.,  4.,  5.,	6.,	 7.]])
-	"""
+    Construct a matrix of `m`-length segments of `x`.
+    Parameters
+    ----------
+    x : (N, ) array_like
+        Array of input data.
+    m : int
+        Length of segment. Must be at least 1. In the case that `m` is 1, the
+        input array is returned.
+    Returns
+    -------
+    patterns : (m, N-m+1)
+        Matrix whose first column is the first `m` elements of `x`, the second
+        column is `x[1:m+1]`, etc.
+    Examples
+    --------
+    > p = pattern_mat([1, 2, 3, 4, 5, 6, 7], 3])
+    array([[ 1.,  2.,  3.,	4.,	 5.],
+           [ 2.,  3.,  4.,	5.,	 6.],
+           [ 3.,  4.,  5.,	6.,	 7.]])
+    """
     x = np.asarray(x).ravel()
     if m == 1:
         return x
     else:
-        N = len(x)
-        patterns = np.zeros((m, N - m + 1))
+        n = len(x)
+        patterns = np.zeros((m, n - m + 1))
         for i in range(m):
-            patterns[i, :] = x[i:N - m + i + 1]
+            patterns[i, :] = x[i:n - m + i + 1]
         return patterns
 
 
@@ -103,16 +105,16 @@ def en_shannon(series, l, num_int):
     _, quants = quantize(series, partition, codebook)
     # The minimum value of the signal quantified assert passes -1 to 0:
     quants = [0 if x == -1 else x for x in quants]
-    N = len(quants)
+    n = len(quants)
     # We compose the patterns of length 'L':
     X = pattern_mat(quants, l)
     # We get the number of repetitions of each pattern:
-    num = np.ones(N - l + 1)
+    num = np.ones(n - l + 1)
     # This loop goes over the columns of 'X':
     if l == 1:
         X = np.atleast_2d(X)
-    for j in range(0, N - l + 1):
-        for i2 in range(j + 1, N - l + 1):
+    for j in range(0, n - l + 1):
+        for i2 in range(j + 1, n - l + 1):
             tmp = [0 if x == -1 else 1 for x in X[:, j]]
             if (tmp[0] == 1) and (X[:, j] == X[:, i2]).all():
                 num[j] += 1
@@ -131,7 +133,7 @@ def en_shannon(series, l, num_int):
     # We get the number of patterns which have appeared only once:
     unique = sum(new_num[new_num == 1])
     # We compute the probability of each pattern:
-    p_i = new_num / (N - l + 1)
+    p_i = new_num / (n - l + 1)
     # Finally, the Shannon Entropy is computed as:
     SE = np.dot((- 1) * p_i, np.log(p_i))
 
@@ -199,7 +201,6 @@ def lexical_diversity(text):
 
 
 def fuente(source):
-
     mobil = ["http://twitter.com/download/android", "Twitter f, Android", "http://blackberry.com/twitter",
              "Twitter f, BlackBerry", "https://mobile.twitter.com", "Mobile Web", "http://twitter.com/download/iphone",
              "iOS", "http://twitter.com/#!/download/ipad", "Huawei Social Phone", "Windows Phone",

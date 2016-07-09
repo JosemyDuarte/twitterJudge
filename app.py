@@ -1,9 +1,11 @@
-from flask import Blueprint
-from flask import Flask, request
 import json
-from engine import MotorClasificador
 import logging
 import os
+
+from flask import Blueprint
+from flask import Flask, request
+
+import engine
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -25,7 +27,7 @@ def inicializar_contexto():
         return json.dumps(dict(resultado=False))
     logging.info("app_name: %s", req["app_name"])
     global motor_clasificador
-    motor_clasificador = MotorClasificador()
+    motor_clasificador = engine.MotorClasificador()
     resultado = motor_clasificador.inicializar_contexto(req["app_name"], req["py_files"])
 
     return json.dumps(dict(resultado=resultado))

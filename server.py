@@ -1,7 +1,10 @@
-import time, sys, cherrypy, os
-from paste.translogger import TransLogger
-from app import create_app
 import ConfigParser
+
+import cherrypy
+import os
+from paste.translogger import TransLogger
+
+from app import create_app
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 configParser = ConfigParser.RawConfigParser()

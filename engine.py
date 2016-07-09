@@ -1,5 +1,7 @@
+import logging
 import os
-import logging, tools
+import tools
+
 import pymongo
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
