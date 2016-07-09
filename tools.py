@@ -836,8 +836,8 @@ def timeline_features(sc, sql_context, juez_spam, directorio):
     df = sql_context.jsonRDD(timeline)
     df = preparar_df(df)
 
-    tweets_RDD = tweets_rdd(df)
-    _tweets_features = tweets_features(tweets_RDD, sql_context, juez_spam)
+    _tweets_rdd = tweets_rdd(df)
+    _tweets_features = tweets_features(_tweets_rdd, sql_context, juez_spam)
 
     df = df.dropDuplicates(["user.id"])
     _usuarios_features = usuarios_features(df)
