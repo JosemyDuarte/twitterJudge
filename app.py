@@ -17,6 +17,18 @@ logger = logging.getLogger(__name__)
 
 @main.route("/inicializar_contexto/", methods=["POST"])
 def inicializar_contexto():
+    """
+    Realiza la inicializacion del ambiente de Spark y MongoDB
+    Returns
+    -------
+    resultado : bool
+        Booleano que sera True en caso de ejecutarse exitosamente
+    Examples
+    --------
+    > curl -H "Content-Type: application/json" -X POST -d
+    '{"app_name":"ExtraerCaracteristicas", "py_files":["engine.py", "app.py", "tools.py"]}'
+    http://[host]:[port]/inicializar_contexto/
+    """
     logger.debug("Iniciando SparkContext (sc)...")
     req = request.json
     if not req["app_name"]:
@@ -35,9 +47,18 @@ def inicializar_contexto():
 
 @main.route("/entrenar_juez/", methods=["POST"])
 def entrenar_juez():
-    """Realiza la carga del set de entrenamiento y genera el juez.
+    """
+    Realiza la carga del set de entrenamiento y genera el juez.
     Requiere de la especificacion de los directorios para las 3 categorias.
-    EJEMPLO: {"bot":"/carpeta/con/bots","humano":"/carpeta/con/humano/","ciborg":"/carpeta/con/ciborg/"}
+    Returns
+    -------
+    resultado : bool
+        Booleano que sera True en caso de ejecutarse exitosamente
+    Examples
+    --------
+    > curl -H "Content-Type: application/json" -X POST -d
+        '{"bots":"/carpeta/con/bots","humanos":"/carpeta/con/humanos","ciborgs":"/home/jovyan/work/datos/datos_cat/ciborg"}'
+         http://[host]:[port]/entrenar_juez/
     """
     logger.debug("Iniciando carga inicial...")
     directorio = request.json
@@ -62,7 +83,15 @@ def entrenar_juez():
 def entrenar_spam():
     """Realiza la carga del set de entrenamiento y genera el juez.
     Requiere de la especificacion de los directorios para las 2 categorias SPAM y NoSPAM.
-    EJEMPLO: {"spam":"/archivo/spam","no_spam":"/archivo/no_spam/"}
+    Returns
+    -------
+    resultado : bool
+        Booleano que sera True en caso de ejecutarse exitosamente
+    Examples
+    --------
+    > curl -H "Content-Type: application/json" -X POST -d
+    {"spam":"/archivo/spam","no_spam":"/archivo/no_spam"}'
+    http://[host]:[port]/entrenar_spam/
     """
     logger.debug("Iniciando carga...")
     directorio = request.json
@@ -79,6 +108,7 @@ def entrenar_spam():
     return json.dumps(dict(resultado=resultado))
 
 
+# Deprecado, funcion inmersa en inicializar_contexto
 @main.route("/mongo_uri/", methods=["POST"])
 def mongo_uri():
     if not request.json.get("mongodb_host"):

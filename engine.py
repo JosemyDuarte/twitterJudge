@@ -44,7 +44,6 @@ class MotorClasificador:
         return True
 
     def entrenar_spam(self, dir_spam, dir_no_spam):
-
         sc = self.sc
         hive_context = self.hive_context
         modelo = tools.entrenar_spam(sc, hive_context, dir_spam, dir_no_spam)
@@ -95,6 +94,7 @@ class MotorClasificador:
         resultado = tools.evaluar(sc, hive_context, juez_spam, juez_timeline, dir_timeline, mongo_uri)
         return resultado
 
+    # Deprecado, funcion inmersa en inicializar_contexto
     def inicializar_mongo(self, mongodb_host, mongodb_port, mongodb_db, mongodb_ttl):
         self.mongodb_host = mongodb_host
         self.mongodb_port = mongodb_port
