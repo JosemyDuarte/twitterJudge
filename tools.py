@@ -736,23 +736,23 @@ def entrenar_juez(sc, sql_context, juez_spam, directorio, num_trees=10, max_dept
 
     df_humanos = sql_context.jsonRDD(timeline_humanos)
     df_humanos = preparar_df(df_humanos)
-    tweets_RDD_humanos = tweets_rdd(df_humanos)
+    tweets_rdd_humanos = tweets_rdd(df_humanos)
 
     df_bots = sql_context.jsonRDD(timeline_bots)
     df_bots = preparar_df(df_bots)
-    tweets_RDD_bots = tweets_rdd(df_bots)
+    tweets_rdd_bots = tweets_rdd(df_bots)
 
     df_ciborgs = sql_context.jsonRDD(timeline_ciborgs)
     df_ciborgs = preparar_df(df_ciborgs)
-    tweets_RDD_ciborgs = tweets_rdd(df_ciborgs)
+    tweets_rdd_ciborgs = tweets_rdd(df_ciborgs)
 
-    tweets_RDD = sc.union([tweets_RDD_bots, tweets_RDD_ciborgs, tweets_RDD_humanos])
+    _tweets_rdd = sc.union([tweets_rdd_bots, tweets_rdd_ciborgs, tweets_rdd_humanos])
 
     df_humanos = df_humanos.dropDuplicates(["user.id"])
     df_bots = df_bots.dropDuplicates(["user.id"])
     df_ciborgs = df_ciborgs.dropDuplicates(["user.id"])
 
-    tweets = tweets_features(tweets_RDD, sql_context, juez_spam)
+    tweets = tweets_features(_tweets_rdd, sql_context, juez_spam)
 
     usuarios_features_humanos = usuarios_features(df_humanos, 0)
     usuarios_features_ciborgs = usuarios_features(df_bots, 1)
