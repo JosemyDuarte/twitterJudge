@@ -201,10 +201,10 @@ def lexical_diversity(text):
 
 
 def fuente(source):
-    mobil = ["http://twitter.com/download/android", "Twitter f, Android", "http://blackberry.com/twitter",
-             "Twitter f, BlackBerry", "https://mobile.twitter.com", "Mobile Web", "http://twitter.com/download/iphone",
+    mobil = ["http://twitter.com/download/android", "Twitter for Android", "http://blackberry.com/twitter",
+             "Twitter for BlackBerry", "https://mobile.twitter.com", "Mobile Web", "http://twitter.com/download/iphone",
              "iOS", "http://twitter.com/#!/download/ipad", "Huawei Social Phone", "Windows Phone",
-             "Twitter f, Nokia S40"]
+             "Twitter for Nokia S40"]
 
     if "Twitter Web Client" in source:
         return 'web'
