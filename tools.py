@@ -737,7 +737,7 @@ def cargar_datos(sc, sql_context, directorio):
 
 
 # TODO agregar features faltantes (safety, diversidad url)
-def entrenar_juez(sc, sql_context, juez_spam, directorio, num_trees=10, max_depth=5):
+def entrenar_juez(sc, sql_context, juez_spam, mongo_uri, directorio, num_trees=10, max_depth=5):
     df_humanos = cargar_datos(sc, sql_context, directorio["humanos"])
     df_bots = cargar_datos(sc, sql_context, directorio["bots"])
     df_ciborgs = cargar_datos(sc, sql_context, directorio["ciborgs"])
@@ -760,9 +760,11 @@ def entrenar_juez(sc, sql_context, juez_spam, directorio, num_trees=10, max_dept
 
     usuarios = usuarios_features_ciborgs.unionAll(usuarios_features_bots)
     usuarios = usuarios.unionAll(usuarios_features_humanos)
-    # usuarios.cache()
+    usuarios.cache()
 
-    labeled_point = usuarios.join(tweets, tweets.user_id == usuarios.user_id).map(
+    set_datos = usuarios.join(tweets, tweets.user_id == usuarios.user_id).cache()
+
+    labeled_point = set_datos.map(
         lambda t: LabeledPoint(t.categoria,
                                [
                                    t.ano_registro,
@@ -826,6 +828,8 @@ def entrenar_juez(sc, sql_context, juez_spam, directorio, num_trees=10, max_dept
 
     modelo = RandomForest.trainClassifier(labeled_point, numClasses=3, categoricalFeaturesInfo={}, numTrees=num_trees,
                                           featureSubsetStrategy="auto", impurity='gini', maxDepth=max_depth, maxBins=32)
+
+    set_datos.map(lambda t: t.asDict()).saveToMongoDB(mongo_uri)
 
     return modelo
 

@@ -28,6 +28,7 @@ class MotorClasificador:
         self.mongodb_port = configParser.get("database", "port")
         self.mongodb_db = configParser.get("database", "db")
         self.mongodb_collection = configParser.get("database", "collection")
+        self.mongodb_collection_trainingset = configParser.get("database", "collection_training")
         self.hive_context = tools.hive_context(self.sc)
         client = pymongo.MongoClient(self.mongodb_host + ":" + self.mongodb_port)
         db = client[self.mongodb_db]
@@ -81,7 +82,9 @@ class MotorClasificador:
 
         logger.info("Entrenando juez...")
 
-        juez_timelines = tools.entrenar_juez(sc, hive_context, juez_spam, directorio)
+        mongo_uri = self.mongodb_host + ":" + self.mongodb_port + "/" + self.mongodb_db + "." + self.mongodb_collection_trainingset
+
+        juez_timelines = tools.entrenar_juez(sc, hive_context, juez_spam, mongo_uri, directorio)
 
         self.juez_timelines = juez_timelines
 
@@ -111,4 +114,3 @@ class MotorClasificador:
         hive_context = self.hive_context
         resultado = tools.evaluar(sc, hive_context, juez_spam, juez_timeline, dir_timeline, mongo_uri)
         return resultado
-
