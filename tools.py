@@ -728,22 +728,22 @@ def entrenar_spam(sc, sql_context, dir_spam, dir_no_spam, num_trees=3, max_depth
     return modelo
 
 
+def cargar_datos(sc, sql_context, directorio):
+    timeline = sc.textFile(directorio)
+    logger.info("Cargando arhcivos...")
+    df = sql_context.jsonRDD(timeline)
+    df = preparar_df(df)
+    return df
+
+
 # TODO agregar features faltantes (safety, diversidad url)
 def entrenar_juez(sc, sql_context, juez_spam, directorio, num_trees=10, max_depth=5):
-    timeline_humanos = sc.textFile(directorio["humanos"])
-    timeline_bots = sc.textFile(directorio["bots"])
-    timeline_ciborgs = sc.textFile(directorio["ciborgs"])
+    df_humanos = cargar_datos(sc, sql_context, directorio["humanos"])
+    df_bots = cargar_datos(sc, sql_context, directorio["bots"])
+    df_ciborgs = cargar_datos(sc, sql_context, directorio["ciborgs"])
 
-    df_humanos = sql_context.jsonRDD(timeline_humanos)
-    df_humanos = preparar_df(df_humanos)
     tweets_rdd_humanos = tweets_rdd(df_humanos)
-
-    df_bots = sql_context.jsonRDD(timeline_bots)
-    df_bots = preparar_df(df_bots)
     tweets_rdd_bots = tweets_rdd(df_bots)
-
-    df_ciborgs = sql_context.jsonRDD(timeline_ciborgs)
-    df_ciborgs = preparar_df(df_ciborgs)
     tweets_rdd_ciborgs = tweets_rdd(df_ciborgs)
 
     _tweets_rdd = sc.union([tweets_rdd_bots, tweets_rdd_ciborgs, tweets_rdd_humanos])
@@ -830,21 +830,8 @@ def entrenar_juez(sc, sql_context, juez_spam, directorio, num_trees=10, max_dept
     return modelo
 
 
-def timeline_features(sc, sql_context, juez_spam, directorio):
-    timeline = sc.textFile(directorio)
-    logger.info("Cargando arhcivos...")
-    df = sql_context.jsonRDD(timeline)
-    df = preparar_df(df)
-
-    _tweets_rdd = tweets_rdd(df)
-    _tweets_features = tweets_features(_tweets_rdd, sql_context, juez_spam)
-
-    df = df.dropDuplicates(["user.id"])
-    _usuarios_features = usuarios_features(df)
-
-    logger.info("Realizando join de usuarios con tweets...")
-
-    set_datos = _usuarios_features.join(_tweets_features, _tweets_features.user_id == _usuarios_features.user_id).map(
+def join(tw_features, usr_features):
+    set_datos = usr_features.join(tw_features, tw_features.user_id == usr_features.user_id).map(
         lambda t: (Row(user_id=t.user_id,
                        ano_registro=t.ano_registro,
                        con_descripcion=t.con_descripcion,
@@ -905,14 +892,23 @@ def timeline_features(sc, sql_context, juez_spam, directorio):
                        safety_url=0,  # Safety url
                        createdAt=datetime.utcnow(),
                        nombre_usuario=t.nombre_usuario)))
+    return set_datos
 
+
+def timeline_features(sql_context, juez_spam, df):
+
+    _tweets_rdd = tweets_rdd(df)
+    _tweets_features = tweets_features(_tweets_rdd, sql_context, juez_spam)
+    df = df.dropDuplicates(["user.id"])
+    _usuarios_features = usuarios_features(df)
+    logger.info("Realizando join de usuarios con tweets...")
+    set_datos = join(_tweets_features, _usuarios_features)
     logger.info("Finalizado el join...")
 
     return set_datos
 
 
-def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri):
-    features = timeline_features(sc, sql_context, juez_spam, dir_timeline).cache()
+def predecir(juez_usuario, features):
     predicciones = juez_usuario.predict(features.map(lambda t: (t.ano_registro,
                                                                 t.con_descripcion,
                                                                 t.con_geo_activo,
@@ -970,7 +966,13 @@ def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri):
                                                                 t.diversidad_url,
                                                                 t.avg_spam,
                                                                 t.safety_url)))
+    return predicciones
 
+
+def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri):
+    df = cargar_datos(sc, sql_context, dir_timeline)
+    features = timeline_features(sql_context, juez_spam, df).cache()
+    predicciones = predecir(juez_usuario, features)
     features = features.zip(predicciones).map(lambda t: dict(t[0].asDict().items() + [("prediccion", t[1])])).cache()
     features.saveToMongoDB(mongo_uri)
 
