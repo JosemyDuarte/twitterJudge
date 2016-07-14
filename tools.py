@@ -18,7 +18,7 @@ from pyspark.mllib.feature import HashingTF
 from pyspark.mllib.regression import LabeledPoint
 from pyspark.mllib.tree import RandomForest
 from pyspark.sql import Row, HiveContext
-from pyspark.sql.functions import udf, lag, length, collect_list, count, size
+from pyspark.sql.functions import udf, lag, length, collect_list, count, size, col
 from pyspark.sql.window import Window
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -207,11 +207,11 @@ def fuente(source):
              "Twitter for Nokia S40"]
 
     if "Twitter Web Client" in source:
-        return 'web'
+        return 'uso_web'
     elif any(string in source for string in mobil):
-        return 'mobil'
+        return 'uso_mobil'
     else:
-        return 'terceros'
+        return 'uso_terceros'
 
 
 def merge_two_dicts(x, y):
@@ -325,12 +325,12 @@ def check_horas(x):
 
 
 def check_fuentes(x):
-    if "web" not in x:
-        x["web"] = 0
-    if "mobil" not in x:
-        x["mobil"] = 0
-    if "terceros" not in x:
-        x["terceros"] = 0
+    if "uso_web" not in x:
+        x["uso_web"] = 0
+    if "uso_mobil" not in x:
+        x["uso_mobil"] = 0
+    if "uso_terceros" not in x:
+        x["uso_terceros"] = 0
     return x
 
 
@@ -376,7 +376,11 @@ def tweets_x_dia(tweets):
     _tweets_x_dia = tweets.map(
         lambda t: ((t[0], parser.parse(t[1][12]).strftime('%a')), 1)).reduceByKey(
         lambda a, b: a + b).map(lambda t: (t[0][0], dict({t[0][1]: t[1]}))).reduceByKey(merge_two_dicts).map(
-        porcentaje_dias).toDF().repartition("user_id")
+        porcentaje_dias).toDF().select(col("user_id"), col("Mon").alias("uso_lunes"),
+                                       col("Tue").alias("uso_martes"),
+                                       col("Wed").alias("uso_miercoles"), col("Thu").alias("uso_jueves"),
+                                       col("Fri").alias("uso_viernes"), col("Sat").alias("uso_sabado"),
+                                       col("Sun").alias("uso_domingo")).repartition("user_id")
 
     return _tweets_x_dia
 
@@ -385,7 +389,30 @@ def tweets_x_hora(tweets):
     _tweets_x_hora = tweets.map(
         lambda t: ((t[0], parser.parse(t[1][12]).strftime('%H')), 1)).reduceByKey(
         lambda a, b: a + b).map(lambda t: (t[0][0], dict({t[0][1]: t[1]}))).reduceByKey(merge_two_dicts).map(
-        porcentaje_horas).toDF().repartition("user_id")
+        porcentaje_horas).toDF().select(col("user_id"), col("00").alias("hora_0"),
+                                        col("01").alias("hora_1"),
+                                        col("02").alias("hora_2"),
+                                        col("03").alias("hora_3"),
+                                        col("04").alias("hora_4"),
+                                        col("05").alias("hora_5"),
+                                        col("06").alias("hora_6"),
+                                        col("07").alias("hora_7"),
+                                        col("08").alias("hora_8"),
+                                        col("09").alias("hora_9"),
+                                        col("10").alias("hora_10"),
+                                        col("11").alias("hora_11"),
+                                        col("12").alias("hora_12"),
+                                        col("13").alias("hora_13"),
+                                        col("14").alias("hora_14"),
+                                        col("15").alias("hora_15"),
+                                        col("16").alias("hora_16"),
+                                        col("17").alias("hora_17"),
+                                        col("18").alias("hora_18"),
+                                        col("19").alias("hora_19"),
+                                        col("20").alias("hora_20"),
+                                        col("21").alias("hora_21"),
+                                        col("22").alias("hora_22"),
+                                        col("23").alias("hora_23")).repartition("user_id")
 
     return _tweets_x_hora
 
@@ -604,7 +631,7 @@ def entropia_urls(directorio, urls=False):
     return entropia
 
 
-def tweets_features(_tweets_rdd, sql_context, juez):
+def tweets_features(_tweets_rdd, juez):
     logger.info("Calculando features para tweets...")
 
     logger.info("Iniciando calculo de tweets por dia...")
@@ -614,68 +641,64 @@ def tweets_features(_tweets_rdd, sql_context, juez):
     logger.info("Iniciando calculo de tweets por hora...")
 
     _tweets_x_hora = tweets_x_hora(_tweets_rdd)
+    acumulador = _tweets_x_dia.join(_tweets_x_hora, _tweets_x_dia.user_id == _tweets_x_hora.user_id)\
+        .drop(_tweets_x_hora.user_id)
 
     logger.info("Iniciando exploracion de las fuentes de los tweets...")
 
     _fuentes_usuario = fuentes_usuario(_tweets_rdd)
+    acumulador = acumulador.join(_fuentes_usuario, _fuentes_usuario.user_id == acumulador.user_id)\
+        .drop(acumulador.user_id)
 
     logger.info("Iniciando calculo de diversidad lexicografica...")
 
     _avg_diversidad_lexicografica = avg_diversidad_lexicografica(_tweets_rdd)
+    acumulador = acumulador.join(_avg_diversidad_lexicografica,
+                                 _avg_diversidad_lexicografica.user_id == acumulador.user_id).drop(acumulador.user_id)
 
     logger.info("Iniciando calculo del promedio de la longuitud de los tweets...")
 
     _avg_long_tweets_x_usuario = avg_long_tweets_x_usuario(_tweets_rdd)
+    acumulador = acumulador.join(_avg_long_tweets_x_usuario, _avg_long_tweets_x_usuario.user_id == acumulador.user_id)\
+        .drop(acumulador.user_id)
 
     logger.info("Iniciando calculo del ratio de respuestas...")
 
     _reply_ratio = reply_ratio(_tweets_rdd)
+    acumulador = acumulador.join(_reply_ratio, _reply_ratio.user_id == acumulador.user_id).drop(acumulador.user_id)
 
     logger.info("Iniciando calculo del promedio de los hashtags...")
 
     _avg_hashtags = avg_hashtags(_tweets_rdd)
+    acumulador = acumulador.join(_avg_hashtags, _avg_hashtags.user_id == acumulador.user_id).drop(acumulador.user_id)
 
     logger.info("Iniciando calculo del promedio de menciones...")
 
     _mention_ratio = mention_ratio(_tweets_rdd)
+    acumulador = acumulador.join(_mention_ratio, _mention_ratio.user_id == acumulador.user_id).drop(acumulador.user_id)
 
     logger.info("Iniciando calculo del promedio de palabras por tweet...")
 
     _avg_palabras = avg_palabras(_tweets_rdd)
+    acumulador = acumulador.join(_avg_palabras, _avg_palabras.user_id == acumulador.user_id).drop(acumulador.user_id)
 
     logger.info("Iniciando calculo del promedio de diversidad de palabras...")
 
     _avg_diversidad = avg_diversidad(_tweets_rdd)
+    acumulador = acumulador.join(_avg_diversidad, _avg_diversidad.user_id == acumulador.user_id)\
+        .drop(acumulador.user_id)
 
     logger.info("Iniciando calculo del ratio de urls...")
 
     _url_ratio = url_ratio(_tweets_rdd)
+    acumulador = acumulador.join(_url_ratio, _url_ratio.user_id == acumulador.user_id).drop(acumulador.user_id)
 
     logger.info("Iniciando calculo del avg de tweets SPAM...")
 
     _avg_spam = avg_spam(juez, _tweets_rdd)
+    resultado = acumulador.join(_avg_spam, _avg_spam.user_id == acumulador.user_id).drop(acumulador.user_id)
 
-    logger.info("Registrando tablas...")
-
-    _url_ratio.registerTempTable("url_ratio")
-    _avg_diversidad.registerTempTable("avg_diversidad")
-    _avg_palabras.registerTempTable("avg_palabras")
-    _mention_ratio.registerTempTable("mention_ratio")
-    _avg_hashtags.registerTempTable("avg_hashtags")
-    _reply_ratio.registerTempTable("reply_ratio")
-    _avg_long_tweets_x_usuario.registerTempTable("avg_long_tweets")
-    _avg_diversidad_lexicografica.registerTempTable("avg_diversidad_lex")
-    _tweets_x_dia.registerTempTable("tweets_x_dia")
-    _tweets_x_hora.registerTempTable("tweets_x_hora")
-    _fuentes_usuario.registerTempTable("fuentes_usuario")
-    _avg_spam.registerTempTable("avg_spam")
-
-    logger.info("Join entre tweets...")
-
-    _tweets_features = sql_context.sql(
-        "select url_ratio.user_id, url_ratio, avg_diversidad, avg_palabras, mention_ratio, avg_hashtags, reply_ratio, avg_long_tweets, avg_diversidad_lex, Mon,Fri,Sat,Sun,Thu,Tue,Wed, `00` as h0,`01` as h1,`02` as h2,`03` as h3,`04` as h4,`05` as h5,`06` as h6,`07` as h7,`08` as h8,`09` as h9,`10` as h10,`11` as h11,`12` as h12,`13` as h13,`14` as h14,`15` as h15,`16` as h16,`17` as h17,`18` as h18,`19` as h19,`20` as h20,`21` as h21, `22` as h22, `23` as h23, mobil,terceros,web, avg_spam from url_ratio, avg_diversidad, avg_palabras, mention_ratio, avg_hashtags, reply_ratio, avg_long_tweets, avg_diversidad_lex, tweets_x_dia, tweets_x_hora, fuentes_usuario, avg_spam where url_ratio.user_id=avg_diversidad.user_id and avg_diversidad.user_id=avg_palabras.user_id and avg_palabras.user_id=mention_ratio.user_id and mention_ratio.user_id=avg_hashtags.user_id and avg_hashtags.user_id=reply_ratio.user_id and reply_ratio.user_id=avg_long_tweets.user_id and avg_long_tweets.user_id=avg_diversidad_lex.user_id and avg_diversidad_lex.user_id=tweets_x_dia.user_id and tweets_x_dia.user_id=tweets_x_hora.user_id and tweets_x_hora.user_id=fuentes_usuario.user_id and fuentes_usuario.user_id=avg_spam.user_id")
-
-    return _tweets_features
+    return resultado
 
 
 def usuarios_features(df, categoria=-1):
@@ -752,7 +775,7 @@ def entrenar_juez(sc, sql_context, juez_spam, mongo_uri, directorio, num_trees=1
     df_bots = df_bots.dropDuplicates(["user.id"])
     df_ciborgs = df_ciborgs.dropDuplicates(["user.id"])
 
-    tweets = tweets_features(_tweets_rdd, sql_context, juez_spam)
+    tweets = tweets_features(_tweets_rdd, juez_spam)
 
     usuarios_features_humanos = usuarios_features(df_humanos, 0)
     usuarios_features_ciborgs = usuarios_features(df_bots, 1)
@@ -786,40 +809,40 @@ def entrenar_juez(sc, sql_context, juez_spam, mongo_uri, directorio, num_trees=1
                                    t.reply_ratio,
                                    t.avg_long_tweets,
                                    t.avg_diversidad_lex,
-                                   t.Mon,
-                                   t.Tue,
-                                   t.Wed,
-                                   t.Thu,
-                                   t.Fri,
-                                   t.Sat,
-                                   t.Sun,
-                                   t.h0,
-                                   t.h1,
-                                   t.h2,
-                                   t.h3,
-                                   t.h4,
-                                   t.h5,
-                                   t.h6,
-                                   t.h7,
-                                   t.h8,
-                                   t.h9,
-                                   t.h10,
-                                   t.h11,
-                                   t.h12,
-                                   t.h13,
-                                   t.h14,
-                                   t.h15,
-                                   t.h16,
-                                   t.h17,
-                                   t.h18,
-                                   t.h19,
-                                   t.h20,
-                                   t.h21,
-                                   t.h22,
-                                   t.h23,
-                                   t.web,
-                                   t.mobil,
-                                   t.terceros,
+                                   t.uso_lunes,
+                                   t.uso_martes,
+                                   t.uso_miercoles,
+                                   t.uso_jueves,
+                                   t.uso_viernes,
+                                   t.uso_sabado,
+                                   t.uso_domingo,
+                                   t.hora_0,
+                                   t.hora_1,
+                                   t.hora_2,
+                                   t.hora_3,
+                                   t.hora_4,
+                                   t.hora_5,
+                                   t.hora_6,
+                                   t.hora_7,
+                                   t.hora_8,
+                                   t.hora_9,
+                                   t.hora_10,
+                                   t.hora_11,
+                                   t.hora_12,
+                                   t.hora_13,
+                                   t.hora_14,
+                                   t.hora_15,
+                                   t.hora_16,
+                                   t.hora_17,
+                                   t.hora_18,
+                                   t.hora_19,
+                                   t.hora_20,
+                                   t.hora_21,
+                                   t.hora_22,
+                                   t.hora_23,
+                                   t.uso_web,
+                                   t.uso_mobil,
+                                   t.uso_terceros,
                                    t.entropia,
                                    0,
                                    t.avg_spam,
@@ -834,7 +857,7 @@ def entrenar_juez(sc, sql_context, juez_spam, mongo_uri, directorio, num_trees=1
     return modelo
 
 
-def join(tw_features, usr_features):
+def join_tw_usr(tw_features, usr_features):
     set_datos = usr_features.join(tw_features, tw_features.user_id == usr_features.user_id).map(
         lambda t: (Row(user_id=t.user_id,
                        ano_registro=t.ano_registro,
@@ -856,40 +879,40 @@ def join(tw_features, usr_features):
                        reply_ratio=t.reply_ratio,
                        avg_long_tweets=t.avg_long_tweets,
                        avg_diversidad_lex=t.avg_diversidad_lex,
-                       uso_lunes=t.Mon,
-                       uso_martes=t.Tue,
-                       uso_miercoles=t.Wed,
-                       uso_jueves=t.Thu,
-                       uso_viernes=t.Fri,
-                       uso_sabado=t.Sat,
-                       uso_domingo=t.Sun,
-                       hora_0=t.h0,
-                       hora_1=t.h1,
-                       hora_2=t.h2,
-                       hora_3=t.h3,
-                       hora_4=t.h4,
-                       hora_5=t.h5,
-                       hora_6=t.h6,
-                       hora_7=t.h7,
-                       hora_8=t.h8,
-                       hora_9=t.h9,
-                       hora_10=t.h10,
-                       hora_11=t.h11,
-                       hora_12=t.h12,
-                       hora_13=t.h13,
-                       hora_14=t.h14,
-                       hora_15=t.h15,
-                       hora_16=t.h16,
-                       hora_17=t.h17,
-                       hora_18=t.h18,
-                       hora_19=t.h19,
-                       hora_20=t.h20,
-                       hora_21=t.h21,
-                       hora_22=t.h22,
-                       hora_23=t.h23,
-                       uso_web=t.web,
-                       uso_mobil=t.mobil,
-                       uso_terceros=t.terceros,
+                       uso_lunes=t.uso_lunes,
+                       uso_martes=t.uso_martes,
+                       uso_miercoles=t.uso_miercoles,
+                       uso_jueves=t.uso_jueves,
+                       uso_viernes=t.uso_viernes,
+                       uso_sabado=t.uso_sabado,
+                       uso_domingo=t.uso_domingo,
+                       hora_0=t.hora_0,
+                       hora_1=t.hora_1,
+                       hora_2=t.hora_2,
+                       hora_3=t.hora_3,
+                       hora_4=t.hora_4,
+                       hora_5=t.hora_5,
+                       hora_6=t.hora_6,
+                       hora_7=t.hora_7,
+                       hora_8=t.hora_8,
+                       hora_9=t.hora_9,
+                       hora_10=t.hora_10,
+                       hora_11=t.hora_11,
+                       hora_12=t.hora_12,
+                       hora_13=t.hora_13,
+                       hora_14=t.hora_14,
+                       hora_15=t.hora_15,
+                       hora_16=t.hora_16,
+                       hora_17=t.hora_17,
+                       hora_18=t.hora_18,
+                       hora_19=t.hora_19,
+                       hora_20=t.hora_20,
+                       hora_21=t.hora_21,
+                       hora_22=t.hora_22,
+                       hora_23=t.hora_23,
+                       uso_web=t.uso_web,
+                       uso_mobil=t.uso_mobil,
+                       uso_terceros=t.uso_terceros,
                        entropia=t.entropia,  # Entropia
                        diversidad_url=0,  # Diversidad
                        avg_spam=t.avg_spam,  # SPAM or not SPAM
@@ -899,14 +922,13 @@ def join(tw_features, usr_features):
     return set_datos
 
 
-def timeline_features(sql_context, juez_spam, df):
-
+def timeline_features(juez_spam, df):
     _tweets_rdd = tweets_rdd(df)
-    _tweets_features = tweets_features(_tweets_rdd, sql_context, juez_spam)
+    _tweets_features = tweets_features(_tweets_rdd, juez_spam)
     df = df.dropDuplicates(["user.id"])
     _usuarios_features = usuarios_features(df)
     logger.info("Realizando join de usuarios con tweets...")
-    set_datos = join(_tweets_features, _usuarios_features)
+    set_datos = join_tw_usr(_tweets_features, _usuarios_features)
     logger.info("Finalizado el join...")
 
     return set_datos
@@ -975,7 +997,7 @@ def predecir(juez_usuario, features):
 
 def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri):
     df = cargar_datos(sc, sql_context, dir_timeline)
-    features = timeline_features(sql_context, juez_spam, df).cache()
+    features = timeline_features(juez_spam, df).cache()
     predicciones = predecir(juez_usuario, features)
     features = features.zip(predicciones).map(lambda t: dict(t[0].asDict().items() + [("prediccion", t[1])])).cache()
     features.saveToMongoDB(mongo_uri)
