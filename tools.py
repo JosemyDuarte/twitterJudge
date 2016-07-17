@@ -705,14 +705,14 @@ def usuarios_features(df, categoria=-1):
     logger.info("Calculando features para usuarios...")
     _usuarios_features = df.map(lambda t: Row(
         user_id=t.user.id,
-        con_imagen_fondo=1 if t.user.profile_use_background_image == True else 0,
+        con_imagen_fondo=1 if t.user.profile_use_background_image else 0,
         ano_registro=int(parser.parse(t.user.created_at).strftime('%Y')),
         n_favoritos=t.user.favourites_count,
-        con_descripcion=1 if len(t.user.description) > 0 else 0,
-        con_perfil_verificado=1 if t.user.verified == True else 0,
-        con_imagen_default=1 if t.user.default_profile_image == True else 0,
+        con_descripcion=1 if len(t.user.description) else 0,
+        con_perfil_verificado=1 if t.user.verified else 0,
+        con_imagen_default=1 if t.user.default_profile_image else 0,
         n_listas=t.user.listed_count,
-        con_geo_activo=1 if t.user.geo_enabled == True else 0,
+        con_geo_activo=1 if t.user.geo_enabled else 0,
         reputacion=t.user.followers_count / (
             t.user.followers_count + t.user.friends_count) if t.user.followers_count or t.user.friends_count or (
             t.user.followers_count + t.user.friends_count > 0) else 0,
