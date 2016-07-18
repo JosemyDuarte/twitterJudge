@@ -35,8 +35,8 @@ def iniciar_spark_context(app_name=None, py_files=None):
         py_files = ['engine.py', 'app.py', 'tools.py']
     conf = SparkConf()
     conf.setAppName(app_name)
-    _sc = SparkContext(conf=conf, pyFiles=py_files)
-    return _sc
+    sc = SparkContext(conf=conf, pyFiles=py_files)
+    return sc
 
 
 def hive_context(sc):
@@ -150,12 +150,12 @@ def cond_en(series, l, num_int):
     # Processing:
     # First, we call the Shannon Entropy function:
     # 'L' as embedding dimension:
-    SE, unique = en_shannon(series, l, num_int)
+    se, unique = en_shannon(series, l, num_int)
     # 'L-1' as embedding dimension:
-    SE_1, _ = en_shannon(series, l - 1, num_int)
+    se_1, _ = en_shannon(series, l - 1, num_int)
     # The Conditional Entropy is defined as a differential entropy:
-    CE = SE - SE_1
-    return CE, unique
+    ce = se - se_1
+    return ce, unique
 
 
 def correc_cond_en(series, lmax, num_int):
