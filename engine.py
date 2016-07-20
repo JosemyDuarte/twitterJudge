@@ -36,7 +36,7 @@ class MotorClasificador:
         coleccion.ensure_index("createdAt", expireAfterSeconds=int(configParser.get("database", "ttl")))
         client.close()
 
-    def entrenar_spam(self, dir_spam, dir_no_spam):
+    def entrenar_spam(self, dir_spam, dir_no_spam, num_trees, max_depth):
         """
             Entrena el juez que clasifica los tweets spam
             Parameters
@@ -45,6 +45,10 @@ class MotorClasificador:
                 Direccion en la que se encuentra el archivo de entrenamiento para SPAM
             dir_no_spam : str
                 Direccion en la que se encuentra el archivo de entrenamiento para NoSPAM
+            num_trees: int
+                Numero de arboles a utilizar para entrenar el Random Forest
+            max_depth: int
+                Maxima profundidad utilizada para el bosque del Random Forest
             Returns
             -------
             True : True
@@ -56,7 +60,7 @@ class MotorClasificador:
             """
         sc = self.sc
         hive_context = self.hive_context
-        modelo = tools.entrenar_spam(sc, hive_context, dir_spam, dir_no_spam)
+        modelo = tools.entrenar_spam(sc, hive_context, dir_spam, dir_no_spam, num_trees, max_depth)
         self.modelo_spam = modelo
 
         return True

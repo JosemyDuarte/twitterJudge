@@ -42,7 +42,6 @@ def entrenar_juez():
     if not directorio["ciborgs"]:
         logging.error("No se especifico la direccion de la carpeta para los ciborgs")
         return json.dumps(dict(resultado=False))
-
     logger.debug("Ejecutando carga y entrenamiento")
     resultado = motor_clasificador.entrenar_juez(directorio)
     logger.debug("Finalizando carga y entrenamiento")
@@ -62,18 +61,26 @@ def entrenar_spam():
     > curl -H "Content-Type: application/json" -X POST -d
     '{"spam":"/archivo/spam","no_spam":"/archivo/no_spam"}'
     http://[host]:[port]/entrenar_spam/
+    > curl -H "Content-Type: application/json" -X POST -d
+    '{"spam":"/archivo/spam","no_spam":"/archivo/no_spam"}, "num_trees":3, "max_depth":2'
+    http://[host]:[port]/entrenar_spam/
     """
     logger.debug("Iniciando carga...")
-    directorio = request.json
-    logging.info(directorio)
-    if not directorio["spam"]:
+    data = request.json
+    logging.info(data)
+    if "spam" not in data:
         logging.error("No se especifico la direccion del archivo de SPAM")
         return json.dumps(dict(resultado=False))
-    if not directorio["no_spam"]:
+    if "no_spam" not in data:
         logging.error("No se especifico la direccion del archivo de NOSPAM")
         return json.dumps(dict(resultado=False))
+    if "num_trees" not in data:
+        logging.warn("No se especifico numero de arboles, se utilizaran 3 por defecto")
+    if "max_depth" not in data:
+        logging.warn("No se especifico profundidad del bosque, se utilizara 2 por defecto")
     logger.debug("Ejecutando carga y entrenamiento")
-    resultado = motor_clasificador.entrenar_spam(directorio["spam"], directorio["no_spam"])
+    resultado = motor_clasificador.entrenar_spam(data["spam"], data["no_spam"], data.get("num_trees", 3),
+                                                 data.get("max_depth", 2))
     logger.debug("Finalizando carga y entrenamiento")
     return json.dumps(dict(resultado=resultado))
 

@@ -727,7 +727,7 @@ def usuarios_features(df, categoria=-1):
     return _usuarios_features
 
 
-def entrenar_spam(sc, sql_context, dir_spam, dir_no_spam, num_trees=3, max_depth=2):
+def entrenar_spam(sc, sql_context, dir_spam, dir_no_spam, num_trees, max_depth):
     input_spam = sc.textFile(dir_spam)
     input_no_spam = sc.textFile(dir_no_spam)
 
