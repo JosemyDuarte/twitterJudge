@@ -31,19 +31,24 @@ def entrenar_juez():
          http://[host]:[port]/entrenar_juez/
     """
     logger.debug("Iniciando carga inicial...")
-    directorio = request.json
-    logging.info(directorio)
-    if not directorio["bots"]:
+    data = request.json
+    logging.info(data)
+    if "bots" not in data:
         logging.error("No se especifico la direccion de la carpeta para los bots")
         return json.dumps(dict(resultado=False))
-    if not directorio["humanos"]:
+    if "humanos" not in data:
         logging.error("No se especifico la direccion de la carpeta para los humanos")
         return json.dumps(dict(resultado=False))
-    if not directorio["ciborgs"]:
+    if "ciborgs" not in data:
         logging.error("No se especifico la direccion de la carpeta para los ciborgs")
         return json.dumps(dict(resultado=False))
+    if "num_trees" not in data:
+        logging.warn("No se especifico numero de arboles, se utilizaran 3 por defecto")
+    if "max_depth" not in data:
+        logging.warn("No se especifico profundidad del bosque, se utilizara 2 por defecto")
     logger.debug("Ejecutando carga y entrenamiento")
-    resultado = motor_clasificador.entrenar_juez(directorio)
+    resultado = motor_clasificador.entrenar_juez(data.get("humanos"), data.get("ciborgs"), data.get("bots"),
+                                                 data.get("num_trees", 3), data.get("max_depth", 2))
     logger.debug("Finalizando carga y entrenamiento")
     return json.dumps(dict(resultado=resultado))
 

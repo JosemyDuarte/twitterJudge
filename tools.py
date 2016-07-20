@@ -760,10 +760,10 @@ def cargar_datos(sc, sql_context, directorio):
 
 
 # TODO agregar features faltantes (safety, diversidad url)
-def entrenar_juez(sc, sql_context, juez_spam, mongo_uri, directorio, num_trees=10, max_depth=5):
-    df_humanos = cargar_datos(sc, sql_context, directorio["humanos"])
-    df_bots = cargar_datos(sc, sql_context, directorio["bots"])
-    df_ciborgs = cargar_datos(sc, sql_context, directorio["ciborgs"])
+def entrenar_juez(sc, sql_context, juez_spam, mongo_uri, humanos, ciborgs, bots, num_trees, max_depth):
+    df_humanos = cargar_datos(sc, sql_context, humanos)
+    df_bots = cargar_datos(sc, sql_context, bots)
+    df_ciborgs = cargar_datos(sc, sql_context, ciborgs)
 
     tweets_rdd_humanos = tweets_rdd(df_humanos)
     tweets_rdd_bots = tweets_rdd(df_bots)

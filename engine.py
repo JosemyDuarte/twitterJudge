@@ -55,7 +55,7 @@ class MotorClasificador:
                 En caso de ejecucion sin problemas, True sera retornado.
             Examples
             --------
-            > entrenar_spam("/archivo/spam","/archivo/nospam")
+            > entrenar_spam("/archivo/spam","/archivo/nospam",3,4)
             > entrenar_spam("hdfs://[host]:[port]/archivo/spam","hdfs://[host]:[port]/archivo/nospam")
             """
         sc = self.sc
@@ -65,20 +65,28 @@ class MotorClasificador:
 
         return True
 
-    def entrenar_juez(self, directorio):
+    def entrenar_juez(self, humanos, ciborgs, bots, num_trees, max_depth):
         """
             Entrena el juez que clasifica los tweets spam
             Parameters
             ----------
-            directorio : diccionario
-                Diccionario con los directorios que contienen los sets de entrenamiento
+            humanos : str
+                Direccion del directorio con timelines "humanos"
+            ciborgs : str
+                Direccion del directorio con timelines "ciborgs"
+            bots : str
+                Direccion del directorio con timelines "bots"
+            num_trees : int
+                Numero de arboles a utilizar para entrenar el Random Forest
+            max_depth : int
+                Maxima profundidad utilizada para el bosque del Random Forest
             Returns
             -------
             True : True
                 En caso de ejecucion sin problemas, True sera retornado.
             Examples
             --------
-            > entrenar_juez('{"bots":"/carpeta/bots","humanos":"/carpeta/humanos","ciborgs":"/carpeta/ciborg"}')
+            > entrenar_juez("/carpeta/humanos", "/carpeta/ciborgs", "/carpeta/bots", 2, 4)
             """
         sc = self.sc
         juez_spam = self.modelo_spam
@@ -86,9 +94,11 @@ class MotorClasificador:
 
         logger.info("Entrenando juez...")
 
-        mongo_uri = self.mongodb_host + ":" + self.mongodb_port + "/" + self.mongodb_db + "." + self.mongodb_collection_trainingset
+        mongo_uri = (self.mongodb_host + ":" + self.mongodb_port + "/" + self.mongodb_db + "." +
+                     self.mongodb_collection_trainingset)
 
-        juez_timelines = tools.entrenar_juez(sc, hive_context, juez_spam, mongo_uri, directorio)
+        juez_timelines = tools.entrenar_juez(sc, hive_context, juez_spam, mongo_uri, humanos, ciborgs, bots, num_trees,
+                                             max_depth)
 
         self.juez_timelines = juez_timelines
 
