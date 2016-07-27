@@ -727,7 +727,7 @@ def usuarios_features(df, categoria=-1):
     return _usuarios_features
 
 
-def entrenar_spam(sc, sql_context, dir_spam, dir_no_spam, num_trees, max_depth):
+def entrenar_spam(sc, sql_context, dir_spam, dir_no_spam, num_trees=3, max_depth=2):
     input_spam = sc.textFile(dir_spam)
     input_no_spam = sc.textFile(dir_no_spam)
 
@@ -760,7 +760,7 @@ def cargar_datos(sc, sql_context, directorio):
 
 
 # TODO agregar features faltantes (safety, diversidad url)
-def entrenar_juez(sc, sql_context, juez_spam, mongo_uri, humanos, ciborgs, bots, num_trees, max_depth):
+def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=None, num_trees=3, max_depth=2):
     df_humanos = cargar_datos(sc, sql_context, humanos)
     df_bots = cargar_datos(sc, sql_context, bots)
     df_ciborgs = cargar_datos(sc, sql_context, ciborgs)
@@ -852,7 +852,8 @@ def entrenar_juez(sc, sql_context, juez_spam, mongo_uri, humanos, ciborgs, bots,
     modelo = RandomForest.trainClassifier(labeled_point, numClasses=3, categoricalFeaturesInfo={}, numTrees=num_trees,
                                           featureSubsetStrategy="auto", impurity='gini', maxDepth=max_depth, maxBins=32)
 
-    set_datos.map(lambda t: t.asDict()).saveToMongoDB(mongo_uri)
+    if mongo_uri:
+        set_datos.map(lambda t: t.asDict()).saveToMongoDB(mongo_uri)
 
     return modelo
 

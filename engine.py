@@ -97,7 +97,7 @@ class MotorClasificador:
         mongo_uri = (self.mongodb_host + ":" + self.mongodb_port + "/" + self.mongodb_db + "." +
                      self.mongodb_collection_trainingset)
 
-        juez_timelines = tools.entrenar_juez(sc, hive_context, juez_spam, mongo_uri, humanos, ciborgs, bots, num_trees,
+        juez_timelines = tools.entrenar_juez(sc, hive_context, juez_spam, humanos, ciborgs, bots, mongo_uri, num_trees,
                                              max_depth)
 
         self.juez_timelines = juez_timelines
