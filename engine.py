@@ -127,4 +127,4 @@ class MotorClasificador:
         mongo_uri = self.mongodb_host + ":" + self.mongodb_port + "/" + self.mongodb_db + "." + self.mongodb_collection
         hive_context = self.hive_context
         resultado = tools.evaluar(sc, hive_context, juez_spam, juez_timeline, dir_timeline, mongo_uri)
-        return resultado
+        return resultado.map(lambda t: t["user_id"]).collect()

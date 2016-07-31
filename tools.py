@@ -996,11 +996,12 @@ def predecir(juez_usuario, features):
     return predicciones
 
 
-def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri):
+def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri=None):
     df = cargar_datos(sc, sql_context, dir_timeline)
     features = timeline_features(juez_spam, df).cache()
     predicciones = predecir(juez_usuario, features)
     features = features.zip(predicciones).map(lambda t: dict(t[0].asDict().items() + [("prediccion", t[1])])).cache()
-    features.saveToMongoDB(mongo_uri)
+    if mongo_uri:
+        features.saveToMongoDB(mongo_uri)
 
-    return features.map(lambda t: t["user_id"]).collect()
+    return features
