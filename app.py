@@ -1,9 +1,11 @@
-from flask import Blueprint
-from flask import Flask, request
 import json
-from engine import MotorClasificador
 import logging
 import os
+
+from flask import Blueprint
+from flask import Flask, request
+
+import engine
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -15,25 +17,38 @@ logger = logging.getLogger(__name__)
 
 @main.route("/entrenar_juez/", methods=["POST"])
 def entrenar_juez():
-    """Realiza la carga del set de entrenamiento y genera el juez.
+    """
+    Realiza la carga del set de entrenamiento y genera el juez.
     Requiere de la especificacion de los directorios para las 3 categorias.
-    EJEMPLO: {"bot":"/carpeta/con/bots","humano":"/carpeta/con/humano/","ciborg":"/carpeta/con/ciborg/"}
+    Returns
+    -------
+    resultado : bool
+        Booleano que sera True en caso de ejecutarse exitosamente
+    Examples
+    --------
+    > curl -H "Content-Type: application/json" -X POST -d
+        '{"bots":"/carpeta/con/bots","humanos":"/carpeta/con/humanos","ciborgs":"/carpeta/con/ciborg"}'
+         http://[host]:[port]/entrenar_juez/
     """
     logger.debug("Iniciando carga inicial...")
-    directorio = request.json
-    logging.info(directorio)
-    if not directorio["bots"]:
-        logging.info("No se especifico la direccion de la carpeta para los bots")
+    data = request.json
+    logging.info(data)
+    if "bots" not in data:
+        logging.error("No se especifico la direccion de la carpeta para los bots")
         return json.dumps(dict(resultado=False))
-    if not directorio["humanos"]:
-        logging.info("No se especifico la direccion de la carpeta para los humanos")
+    if "humanos" not in data:
+        logging.error("No se especifico la direccion de la carpeta para los humanos")
         return json.dumps(dict(resultado=False))
-    if not directorio["ciborgs"]:
-        logging.info("No se especifico la direccion de la carpeta para los ciborgs")
+    if "ciborgs" not in data:
+        logging.error("No se especifico la direccion de la carpeta para los ciborgs")
         return json.dumps(dict(resultado=False))
-
+    if "num_trees" not in data:
+        logging.warn("No se especifico numero de arboles, se utilizaran 3 por defecto")
+    if "max_depth" not in data:
+        logging.warn("No se especifico profundidad del bosque, se utilizara 2 por defecto")
     logger.debug("Ejecutando carga y entrenamiento")
-    resultado = motor_clasificador.entrenar_juez(directorio)
+    resultado = motor_clasificador.entrenar_juez(data.get("humanos"), data.get("ciborgs"), data.get("bots"),
+                                                 data.get("num_trees", 3), data.get("max_depth", 2))
     logger.debug("Finalizando carga y entrenamiento")
     return json.dumps(dict(resultado=resultado))
 
@@ -42,46 +57,54 @@ def entrenar_juez():
 def entrenar_spam():
     """Realiza la carga del set de entrenamiento y genera el juez.
     Requiere de la especificacion de los directorios para las 2 categorias SPAM y NoSPAM.
-    EJEMPLO: {"spam":"/archivo/spam","no_spam":"/archivo/no_spam/"}
+    Returns
+    -------
+    resultado : bool
+        Booleano que sera True en caso de ejecutarse exitosamente
+    Examples
+    --------
+    > curl -H "Content-Type: application/json" -X POST -d
+    '{"spam":"/archivo/spam","no_spam":"/archivo/no_spam"}'
+    http://[host]:[port]/entrenar_spam/
+    > curl -H "Content-Type: application/json" -X POST -d
+    '{"spam":"/archivo/spam","no_spam":"/archivo/no_spam"}, "num_trees":3, "max_depth":2'
+    http://[host]:[port]/entrenar_spam/
     """
     logger.debug("Iniciando carga...")
-    directorio = request.json
-    logging.info(directorio)
-    if not directorio["spam"]:
+    data = request.json
+    logging.info(data)
+    if "spam" not in data:
         logging.error("No se especifico la direccion del archivo de SPAM")
         return json.dumps(dict(resultado=False))
-    if not directorio["no_spam"]:
+    if "no_spam" not in data:
         logging.error("No se especifico la direccion del archivo de NOSPAM")
         return json.dumps(dict(resultado=False))
+    if "num_trees" not in data:
+        logging.warn("No se especifico numero de arboles, se utilizaran 3 por defecto")
+    if "max_depth" not in data:
+        logging.warn("No se especifico profundidad del bosque, se utilizara 2 por defecto")
     logger.debug("Ejecutando carga y entrenamiento")
-    resultado = motor_clasificador.entrenar_spam(directorio["spam"], directorio["no_spam"])
+    resultado = motor_clasificador.entrenar_spam(data["spam"], data["no_spam"], data.get("num_trees", 3),
+                                                 data.get("max_depth", 2))
     logger.debug("Finalizando carga y entrenamiento")
-    return json.dumps(dict(resultado=resultado))
-
-
-@main.route("/mongo_uri/", methods=["POST"])
-def mongo_uri():
-    if not request.json.get("mongodb_host"):
-        logging.error("No se especifico el parametro 'mongodb_host' para mongodb")
-        return json.dumps(dict(resultado=False))
-    if not request.json.get("mongodb_port"):
-        logging.error("No se especifico el parametro 'mongodb_port' para mongodb")
-        return json.dumps(dict(resultado=False))
-    if not request.json.get("mongodb_db"):
-        logging.error("No se especifico el parametro 'mongodb_db' para mongodb")
-        return json.dumps(dict(resultado=False))
-    mongodb_host = request.json.get("mongodb_host")
-    mongodb_port = request.json.get("mongodb_port")
-    mongodb_db = request.json.get("mongodb_db")
-    logger.debug("mongo_uri recibio host: %s", mongodb_host)
-    logger.debug("mongo_uri recibio puerto: %s", mongodb_port)
-    logger.debug("mongo_uri recibio bd: %s", mongodb_db)
-    resultado = motor_clasificador.inicializar_mongo(mongodb_host, mongodb_port, mongodb_db)
     return json.dumps(dict(resultado=resultado))
 
 
 @main.route("/evaluar/", methods=["POST"])
 def evaluar():
+    """
+    Realiza la evaluacion de los timelines.
+    Requiere de la especificacion del directorio que contiene los timelines
+    Returns
+    -------
+    resultado : diccionario
+        Sera False, en caso de error. Contendra el id de los usuarios evaluados.
+    Examples
+    --------
+    > curl -H "Content-Type: application/json" -X POST -d
+    '{"directorio":"/carpeta/con/timelines/*"}'
+    http://[host]:[port]/evaluar/
+    """
     if not request.json.get("directorio"):
         logging.error("No se especifico el parametro 'directorio' para evaluar")
         return json.dumps(dict(resultado=False))
@@ -91,32 +114,15 @@ def evaluar():
     return json.dumps(dict(resultado=resultado))
 
 
-@main.route("/cargar_spam/", methods=["POST"])
-def cargar_spam():
-    directorio = request.json.get("directorio")
-    logger.debug("Cargando juez de spam almacenado en: %s", directorio)
-    resultado = motor_clasificador.cargar_spam(directorio)
-    return json.dumps(dict(resultado=resultado))
-
-
-@main.route("/cargar_juez/", methods=["POST"])
-def cargar_juez():
-    directorio = request.json.get("directorio")
-    logger.debug("Cargando juez almacenado en: %s", directorio)
-    resultado = motor_clasificador.cargar_juez(directorio)
-    return json.dumps(dict(resultado=resultado))
-
-
 @main.route("/alive/", methods=["GET"])
 def alive():
+    """Funcion para verificar disponibilidad del servidor"""
     return json.dumps(dict(resultado="I'm Alive!"))
 
 
-def create_app(spark_context):
+def create_app():
     global motor_clasificador
-
-    motor_clasificador = MotorClasificador(spark_context)
-
+    motor_clasificador = engine.MotorClasificador()
     app = Flask(__name__)
     app.register_blueprint(main)
     return app
