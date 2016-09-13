@@ -25,7 +25,8 @@ from pyspark.sql.window import Window
 from pyspark.ml.feature import HashingTF, IDF, Tokenizer
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
-from pyspark.sql.functions import udf
+from pyspark.sql.functions import year
+from pyspark.sql.types import *
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 pymongo_spark.activate()
@@ -558,12 +559,12 @@ def avg_spam(juez, tweets):
 
     return _avg_spam
 
+u_parse_time = udf(parse_time)
 
 def preparar_df(df):
     df.repartition(df.user.id)
 
     df = df.where(length(df.text) > 0)
-    u_parse_time = udf(parse_time)
     df = df.select("*", u_parse_time(df['created_at']).cast('timestamp').alias('created_at_ts'))
 
     df_intertweet = df.select(df.user.id.alias("user_id"), (
@@ -578,65 +579,6 @@ def preparar_df(df):
     return df
 
 
-def get_final_url(url):
-    try:
-        resultado = requests.get(url, timeout=10)
-        if resultado.status_code >= 400:
-            return str(resultado.status_code)
-        else:
-            return urlparse.urldefrag(resultado.url)[0]
-    except Exception:
-        return "600"
-
-
-def diversidad_urls(urls):
-    resultado_urls = []
-    hosts = []
-    diversidad_url = 0
-    n_urls = 0
-    logger.debug("Iniciando proceso para %s urls", str(len(urls)))
-    for _url in urls:
-        for url in _url:
-            logger.debug("Obteniendo redireccion final de url %s", str(url["expanded_url"]))
-            finalurl = get_final_url(url["expanded_url"])
-            logger.debug("ANTES: %s RESULTADO: %s", str(url["expanded_url"]), str(finalurl))
-            if not finalurl.isdigit():
-                resultado_urls.append(finalurl)
-                hosts.append(urlparse.urlparse(finalurl).netloc)
-                n_urls += 1
-    if n_urls != 0:
-        diversidad_url = len(set(hosts)) / n_urls
-    return diversidad_url
-
-
-def intertweet_urls(directorio):
-    lista_intertweet = []
-    lista_urls = []
-    i = 0
-    with open(directorio) as timeline:
-        lines = timeline.readlines()
-        if json.loads(lines[0]) and len(lines) > 100:
-            while i + 1 != len(lines) and i < 110:
-                tweet = (json.loads(lines[i]), json.loads(lines[i + 1]))
-                i += 1
-                date = (parser.parse(tweet[0]['created_at']), parser.parse(tweet[1]['created_at']))
-                lista_intertweet.append(abs((date[1] - date[0]).total_seconds()))
-                if tweet[0]['entities']['urls'][0]:
-                    lista_urls.append(tweet[0]['entities']['urls'])
-    return json.dumps(
-        dict(intertweet_delay=lista_intertweet, user_id=json.loads(lines[0])["user"]["id"], urls=lista_urls))
-
-
-def entropia_urls(directorio, urls=False):
-    data = intertweet_urls(directorio)
-    entropia = correc_cond_en(data["intertweet_delay"], len(data["intertweet_delay"]),
-                              int(np.ceil(np.log2(max(data["intertweet_delay"])))))
-    if urls:
-        diversidad = diversidad_urls(data["urls"])
-        return entropia, diversidad
-    return entropia
-
-
 def tweets_features(_tweets_rdd, juez):
     logger.info("Calculando features para tweets...")
 
@@ -647,13 +589,13 @@ def tweets_features(_tweets_rdd, juez):
     logger.info("Iniciando calculo de tweets por hora...")
 
     _tweets_x_hora = tweets_x_hora(_tweets_rdd)
-    acumulador = _tweets_x_dia.join(_tweets_x_hora, _tweets_x_dia.user_id == _tweets_x_hora.user_id)\
+    acumulador = _tweets_x_dia.join(_tweets_x_hora, _tweets_x_dia.user_id == _tweets_x_hora.user_id) \
         .drop(_tweets_x_hora.user_id)
 
     logger.info("Iniciando exploracion de las fuentes de los tweets...")
 
     _fuentes_usuario = fuentes_usuario(_tweets_rdd)
-    acumulador = acumulador.join(_fuentes_usuario, _fuentes_usuario.user_id == acumulador.user_id)\
+    acumulador = acumulador.join(_fuentes_usuario, _fuentes_usuario.user_id == acumulador.user_id) \
         .drop(acumulador.user_id)
 
     logger.info("Iniciando calculo de diversidad lexicografica...")
@@ -665,7 +607,7 @@ def tweets_features(_tweets_rdd, juez):
     logger.info("Iniciando calculo del promedio de la longuitud de los tweets...")
 
     _avg_long_tweets_x_usuario = avg_long_tweets_x_usuario(_tweets_rdd)
-    acumulador = acumulador.join(_avg_long_tweets_x_usuario, _avg_long_tweets_x_usuario.user_id == acumulador.user_id)\
+    acumulador = acumulador.join(_avg_long_tweets_x_usuario, _avg_long_tweets_x_usuario.user_id == acumulador.user_id) \
         .drop(acumulador.user_id)
 
     logger.info("Iniciando calculo del ratio de respuestas...")
@@ -691,7 +633,7 @@ def tweets_features(_tweets_rdd, juez):
     logger.info("Iniciando calculo del promedio de diversidad de palabras...")
 
     _avg_diversidad = avg_diversidad(_tweets_rdd)
-    acumulador = acumulador.join(_avg_diversidad, _avg_diversidad.user_id == acumulador.user_id)\
+    acumulador = acumulador.join(_avg_diversidad, _avg_diversidad.user_id == acumulador.user_id) \
         .drop(acumulador.user_id)
 
     logger.info("Iniciando calculo del ratio de urls...")
@@ -707,28 +649,48 @@ def tweets_features(_tweets_rdd, juez):
     return resultado
 
 
-def usuarios_features(df, categoria=-1):
+lengthOfArray = udf(lambda arr: len(arr), IntegerType())
+
+nullToInt = udf(lambda e: 1 if e else 0, IntegerType())  # BooleanToInt, StringISEmpty
+
+stringToDate = udf(lambda date: parser.parse(date), TimestampType())
+
+reputacion = udf(lambda followers, friends:
+                 float(followers) / (followers + friends) if (followers + friends > 0)  else 0, DoubleType())
+
+followersRatio = udf(lambda followers, friends:
+                     float(followers) / friends if (friends > 0)  else 0, DoubleType())
+
+diversidadLexicograficaUDF = udf(lambda str: float(len(set(str))) / len(str) if str else 0, DoubleType())
+
+cantPalabras = udf(lambda text: len(text.split(" ")), DoubleType())
+
+entropia = udf(lambda lista_intertweet:
+               float(correc_cond_en(lista_intertweet[1:110], len(lista_intertweet[1:110]),
+                                    int(np.ceil(
+                                        np.log2(max(lista_intertweet[1:110])))))), DoubleType())
+
+
+def usuarios_features(df, categoria=-1.0):
     logger.info("Calculando features para usuarios...")
-    _usuarios_features = df.map(lambda t: Row(
-        user_id=t.user.id,
-        con_imagen_fondo=1 if t.user.profile_use_background_image else 0,
-        ano_registro=int(parser.parse(t.user.created_at).strftime('%Y')),
-        n_favoritos=t.user.favourites_count,
-        con_descripcion=1 if len(t.user.description) else 0,
-        con_perfil_verificado=1 if t.user.verified else 0,
-        con_imagen_default=1 if t.user.default_profile_image else 0,
-        n_listas=t.user.listed_count,
-        con_geo_activo=1 if t.user.geo_enabled else 0,
-        reputacion=t.user.followers_count / (
-            t.user.followers_count + t.user.friends_count) if t.user.followers_count or t.user.friends_count or (
-            t.user.followers_count + t.user.friends_count > 0) else 0,
-        n_tweets=t.user.statuses_count,
-        followers_ratio=t.user.followers_count / t.user.friends_count if t.user.friends_count > 0 else 0,
-        entropia=float(correc_cond_en(t.lista_intertweet[:110], len(t.lista_intertweet[:110]),
-                                      int(np.ceil(
-                                          np.log2(max(t.lista_intertweet[:110])))))),
-        nombre_usuario=t.user.screen_name,
-        categoria=categoria)).toDF()
+
+    _usuarios_features = df.select("user.id",
+                                   nullToInt("user.profile_use_background_image").alias("conImagenFondo"),
+                                   u_parse_time("user.created_at").cast('timestamp').alias("cuentaCreada"),
+                                   df["user.favourites_count"].alias("nroFavoritos"),
+                                   nullToInt("user.description").alias("conDescripcion"),
+                                   length("user.description").alias("longitudDescripcion"),
+                                   nullToInt("user.verified").alias("conPerfilVerificado"),
+                                   nullToInt("user.default_profile_image").alias("conImagenDefault"),
+                                   df["user.listed_count"].alias("nroListas"),
+                                   nullToInt("user.geo_enabled").alias("conGeoAtivo"),
+                                   reputacion("user.followers_count", "user.friends_count").alias("reputacion"),
+                                   df["user.statuses_count"].alias("nroTweets"),
+                                   followersRatio("user.followers_count", "user.friends_count").alias("followersRatio"),
+                                   df["user.screen_name"].alias("nombreUsuario"),
+                                   entropia("lista_intertweet").alias("entropia"),
+                                   ).withColumn("anoCreada", year("cuentaCreada")).withColumn("categoria",
+                                                                                              lit(categoria))
 
     return _usuarios_features
 
