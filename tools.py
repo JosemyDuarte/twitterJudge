@@ -15,11 +15,17 @@ from dateutil import parser
 from pyspark import SparkContext
 from pyspark.conf import SparkConf
 from pyspark.mllib.feature import HashingTF
+from pyspark.sql.functions import lit
 from pyspark.mllib.regression import LabeledPoint
 from pyspark.mllib.tree import RandomForest
-from pyspark.sql import Row, HiveContext
+from pyspark.sql import Row, SparkSession
 from pyspark.sql.functions import udf, lag, length, collect_list, count, size, col
 from pyspark.sql.window import Window
+
+from pyspark.ml.feature import HashingTF, IDF, Tokenizer
+from pyspark.ml.classification import RandomForestClassifier
+from pyspark.ml.evaluation import MulticlassClassificationEvaluator
+from pyspark.sql.functions import udf
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 pymongo_spark.activate()
@@ -40,7 +46,7 @@ def iniciar_spark_context(app_name=None, py_files=None):
 
 
 def hive_context(sc):
-    return HiveContext(sc)
+    return SparkSession().builder.getOrCreate()
 
 
 def quantize(signal, partitions, codebook):
@@ -731,22 +737,29 @@ def entrenar_spam(sc, sql_context, dir_spam, dir_no_spam, num_trees=3, max_depth
     input_spam = sc.textFile(dir_spam)
     input_no_spam = sc.textFile(dir_no_spam)
 
-    spam = sql_context.jsonRDD(input_spam).map(lambda t: t.text)
-    no_spam = sql_context.jsonRDD(input_no_spam).map(lambda t: t.text)
+    spam = sql_context.read.json(input_spam).select("text").withColumn("label", lit(1.0))
+    no_spam = sql_context.read.json(input_no_spam).select("text").withColumn("label", lit(0.0))
 
-    tf = HashingTF(numFeatures=200)
+    training_data = spam.unionAll(no_spam)
 
-    spam_features = spam.map(lambda tweet: tf.transform(tweet.split(" ")))
-    no_spam_features = no_spam.map(lambda tweet: tf.transform(tweet.split(" ")))
+    tokenizer = Tokenizer(inputCol="text", outputCol="words")
+    wordsData = tokenizer.transform(training_data)
 
-    ejemplos_spam = spam_features.map(lambda features: LabeledPoint(1, features))
-    ejemplos_no_spam = no_spam_features.map(lambda features: LabeledPoint(0, features))
+    hashingTF = HashingTF(inputCol="words", outputCol="rawFeatures", numFeatures=200)
+    featurizedData = hashingTF.transform(wordsData)
 
-    training_data = ejemplos_spam.union(ejemplos_no_spam)
-    training_data.cache()
+    idf = IDF(inputCol="rawFeatures", outputCol="features")
+    idfModel = idf.fit(featurizedData)
+    rescaledData = idfModel.transform(featurizedData)
 
-    modelo = RandomForest.trainClassifier(training_data, numClasses=2, categoricalFeaturesInfo={}, numTrees=num_trees,
-                                          featureSubsetStrategy="auto", impurity='gini', maxDepth=max_depth, maxBins=32)
+    rf = RandomForestClassifier().setLabelCol("label") \
+        .setPredictionCol("predicted_label") \
+        .setFeaturesCol("features") \
+        .setSeed(100088121L) \
+        .setMaxDepth(max_depth) \
+        .setNumTrees(num_trees)
+
+    modelo = rf.fit(rescaledData)
 
     return modelo
 
@@ -754,7 +767,7 @@ def entrenar_spam(sc, sql_context, dir_spam, dir_no_spam, num_trees=3, max_depth
 def cargar_datos(sc, sql_context, directorio):
     timeline = sc.textFile(directorio)
     logger.info("Cargando arhcivos...")
-    df = sql_context.jsonRDD(timeline)
+    df = sql_context.read.json(timeline)
     df = preparar_df(df)
     return df
 
