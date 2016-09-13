@@ -777,9 +777,9 @@ def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=
 
     tweets = tweets_features(_tweets_rdd, juez_spam)
 
-    usuarios_features_humanos = usuarios_features(df_humanos, 0)
-    usuarios_features_ciborgs = usuarios_features(df_bots, 1)
-    usuarios_features_bots = usuarios_features(df_ciborgs, 2)
+    usuarios_features_humanos = usuarios_features(df_humanos, 0.0)
+    usuarios_features_ciborgs = usuarios_features(df_bots, 1.0)
+    usuarios_features_bots = usuarios_features(df_ciborgs, 2.0)
 
     usuarios = usuarios_features_ciborgs.unionAll(usuarios_features_bots)
     usuarios = usuarios.unionAll(usuarios_features_humanos)
