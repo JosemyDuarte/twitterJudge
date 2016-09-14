@@ -17,18 +17,17 @@ from dateutil import parser
 from pyspark import SparkContext
 from pyspark.conf import SparkConf
 from pyspark.mllib.feature import HashingTF
-from pyspark.sql.functions import lit
 from pyspark.mllib.regression import LabeledPoint
 from pyspark.mllib.tree import RandomForest
 from pyspark.sql import Row, SparkSession
-from pyspark.sql.functions import udf, lag, length, collect_list, count, size, col, sum, date_format, year, month, hour, \
-    avg
+from pyspark.sql import functions as F
 from pyspark.sql.window import Window
 
 from pyspark.ml.feature import HashingTF, IDF, Tokenizer
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.sql.types import *
+
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 pymongo_spark.activate()
@@ -253,15 +252,7 @@ def parse_time(s):
     )
 
 
-u_parse_time = udf(parse_time)
-
-
-def fuentes_usuario(tweets):
-    _fuentes_usuario = tweets.map(lambda t: ((t[0], fuente(t[1][8])), 1)).reduceByKey(
-        lambda a, b: a + b).map(lambda t: (t[0][0], dict({t[0][1]: t[1]}))).reduceByKey(merge_two_dicts).map(
-        porcentaje_fuentes).toDF().repartition("user_id")
-
-    return _fuentes_usuario
+u_parse_time = F.udf(parse_time)
 
 
 def avg_diversidad(tweets):
@@ -289,7 +280,7 @@ def avg_spam(juez, tweets):
     rescaledData = idfModel.transform(featurizedData)
 
     predictionsAndLabelsDF = juez.transform(rescaledData).groupBy("user_id").agg(
-        avg('predicted_label').alias("avgSpam"))
+        F.avg('predicted_label').alias("avgSpam"))
 
     return predictionsAndLabelsDF
 
@@ -297,59 +288,59 @@ def avg_spam(juez, tweets):
 def preparar_df(df):
     df.repartition(df.user.id)
 
-    df = df.where(length(df.text) > 0)
+    df = df.where(F.length(df.text) > 0)
     df = df.select("*", u_parse_time(df['created_at']).cast('timestamp').alias('created_at_ts'))
 
     df_intertweet = df.select(df.user.id.alias("user_id"), (
-        df.created_at_ts.cast('bigint') - lag(df.created_at_ts.cast('bigint'), ).over(
+        df.created_at_ts.cast('bigint') - F.lag(df.created_at_ts.cast('bigint'), ).over(
             Window.partitionBy("user.id").orderBy("created_at_ts"))).cast("bigint").alias("time_intertweet"))
 
     df_list_intertweet = df_intertweet.groupby(df_intertweet.user_id).agg(
-        collect_list("time_intertweet").alias("lista_intertweet"))
+        F.collect_list("time_intertweet").alias("lista_intertweet"))
 
     df = df.join(df_list_intertweet, df["user.id"] == df_list_intertweet["user_id"])
 
     return df
 
 
-lengthOfArray = udf(lambda arr: len(arr), IntegerType())
+lengthOfArray = F.udf(lambda arr: len(arr), IntegerType())
 
-nullToInt = udf(lambda e: 1 if e else 0, IntegerType())  # BooleanToInt, StringISEmpty
+nullToInt = F.udf(lambda e: 1 if e else 0, IntegerType())  # BooleanToInt, StringISEmpty
 
-stringToDate = udf(lambda date: parser.parse(date), TimestampType())
+stringToDate = F.udf(lambda date: parser.parse(date), TimestampType())
 
-reputacion = udf(lambda followers, friends:
+reputacion = F.udf(lambda followers, friends:
                  float(followers) / (followers + friends) if (followers + friends > 0)  else 0, DoubleType())
 
-followersRatio = udf(lambda followers, friends:
+followersRatio = F.udf(lambda followers, friends:
                      float(followers) / friends if (friends > 0)  else 0, DoubleType())
 
-diversidadLexicograficaUDF = udf(lambda str: float(len(set(str))) / len(str) if str else 0, DoubleType())
+diversidadLexicograficaUDF = F.udf(lambda str: float(len(set(str))) / len(str) if str else 0, DoubleType())
 
-cantPalabras = udf(lambda text: len(text.split(" ")), IntegerType())
+cantPalabras = F.udf(lambda text: len(text.split(" ")), IntegerType())
 
-entropia = udf(lambda lista_intertweet:
-               float(correc_cond_en(lista_intertweet[1:110], len(lista_intertweet[1:110]),
-                                    int(np.ceil(
-                                        np.log2(max(lista_intertweet[1:110])))))), DoubleType())
+fuentesUDF = F.udf(lambda source: fuente(source), StringType())
 
-fuentesUDF = udf(lambda source: fuente(source), StringType())
+entropia = F.udf(lambda lista_intertweet:
+                 float(correc_cond_en(lista_intertweet[1:110], len(lista_intertweet[1:110]),
+                                      int(np.ceil(
+                                          np.log2(max(lista_intertweet[1:110])))))), DoubleType())
 
 
 def tweetsEnSemana(df):
     return df.groupBy("user_id", "nroTweets") \
         .pivot("dia", ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]) \
-        .agg(count("text") / df["nroTweets"])
+        .agg(F.count("text") / df["nroTweets"])
 
 
 def tweetsAlDia(df):
-    return df.groupBy("user_id", "nroTweets").pivot("hora", range(0, 24)).agg(count("text") / df["nroTweets"])
+    return df.groupBy("user_id", "nroTweets").pivot("hora", range(0, 24)).agg(F.count("text") / df["nroTweets"])
 
 
 def fuenteTweets(df):
     return (df.groupBy("user_id", "nroTweets")
             .pivot("fuente", ["uso_web", "uso_mobil", "uso_terceros"])
-            .agg(count("text") / df["nroTweets"]))
+            .agg(F.count("text") / df["nroTweets"]))
 
 
 def dfParaTweets(df):
@@ -359,13 +350,13 @@ def dfParaTweets(df):
 
 # TODO Avg de Diversidad de Palabras
 def tweets_features(df, juez):
-    nroTweetsDF = df.groupBy("user_id").agg(count("text").alias("nroTweets"))
+    nroTweetsDF = df.groupBy("user_id").agg(F.count("text").alias("nroTweets"))
 
     df = (df.join(nroTweetsDF, nroTweetsDF.user_id == df.user_id)
           .withColumn("fecha_tweet", u_parse_time("created_at").cast('timestamp'))
-          .withColumn("mes", month("fecha_tweet"))
-          .withColumn("dia", date_format("fecha_tweet", "EEEE"))
-          .withColumn("hora", hour("fecha_tweet"))
+          .withColumn("mes", F.month("fecha_tweet"))
+          .withColumn("dia", F.date_format("fecha_tweet", "EEEE"))
+          .withColumn("hora", F.hour("fecha_tweet"))
           .withColumn("fuente", fuentesUDF("source"))
           .drop(nroTweetsDF.user_id))
 
@@ -376,14 +367,14 @@ def tweets_features(df, juez):
     tweetsFuentesDF = fuenteTweets(df)
 
     featuresDF = df.groupBy("user_id", "nroTweets").agg(
-        (sum(size("entities.urls")) / col("nroTweets")).alias("urlRatio"),
-        (sum(diversidadLexicograficaUDF("text")) / col("nroTweets")).alias("diversidadLexicografica"),
-        (sum(length("text")) / col("nroTweets")).alias("avgLongitudTweets"),
-        (sum(nullToInt("in_reply_to_status_id")) / col("nroTweets")).alias("replyRatio"),
-        (sum(lengthOfArray("entities.hashtags")) / col("nroTweets")).alias("avgHashtags"),
-        (sum(lengthOfArray("entities.user_mentions")) / col("nroTweets")).alias("mentionRatio"),
-        (sum(cantPalabras("text")) / col("nroTweets")).alias("avgPalabras"),
-        (sum(lengthOfArray("entities.urls")) / col("nroTweets")).alias("urlRatio"))
+        (sum(F.size("entities.urls")) / F.col("nroTweets")).alias("urlRatio"),
+        (sum(diversidadLexicograficaUDF("text")) / F.col("nroTweets")).alias("diversidadLexicografica"),
+        (sum(F.length("text")) / F.col("nroTweets")).alias("avgLongitudTweets"),
+        (sum(nullToInt("in_reply_to_status_id")) / F.col("nroTweets")).alias("replyRatio"),
+        (sum(lengthOfArray("entities.hashtags")) / F.col("nroTweets")).alias("avgHashtags"),
+        (sum(lengthOfArray("entities.user_mentions")) / F.col("nroTweets")).alias("mentionRatio"),
+        (sum(cantPalabras("text")) / F.col("nroTweets")).alias("avgPalabras"),
+        (sum(lengthOfArray("entities.urls")) / F.col("nroTweets")).alias("urlRatio"))
 
     spamDF = avg_spam(juez, df)
 
@@ -414,7 +405,7 @@ def usuarios_features(df, categoria=-1.0):
                            u_parse_time("user.created_at").cast('timestamp').alias("cuentaCreada"),
                            df["user.favourites_count"].alias("nroFavoritos"),
                            nullToInt("user.description").alias("conDescripcion"),
-                           length("user.description").alias("longitudDescripcion"),
+                           F.length("user.description").alias("longitudDescripcion"),
                            nullToInt("user.verified").alias("conPerfilVerificado"),
                            nullToInt("user.default_profile_image").alias("conImagenDefault"),
                            df["user.listed_count"].alias("nroListas"),
@@ -423,10 +414,10 @@ def usuarios_features(df, categoria=-1.0):
                            df["user.statuses_count"].alias("nroTweets"),
                            followersRatio("user.followers_count", "user.friends_count").alias("followersRatio"),
                            df["user.screen_name"].alias("nombreUsuario"),
-                           #entropia("lista_intertweet").alias("entropia")
+                           entropia("lista_intertweet").alias("entropia")
                            )
-                 .withColumn("anoCreada", year("cuentaCreada"))
-                 .withColumn("categoria", lit(categoria)))
+                 .withColumn("anoCreada", F.year("cuentaCreada"))
+                 .withColumn("categoria", F.lit(categoria)))
 
     return resultado
 
@@ -435,8 +426,8 @@ def entrenar_spam(sc, sql_context, dir_spam, dir_no_spam, num_trees=3, max_depth
     input_spam = sc.textFile(dir_spam)
     input_no_spam = sc.textFile(dir_no_spam)
 
-    spam = sql_context.read.json(input_spam).select("text").withColumn("label", lit(1.0))
-    no_spam = sql_context.read.json(input_no_spam).select("text").withColumn("label", lit(0.0))
+    spam = sql_context.read.json(input_spam).select("text").withColumn("label", F.lit(1.0))
+    no_spam = sql_context.read.json(input_no_spam).select("text").withColumn("label", F.lit(0.0))
 
     training_data = spam.unionAll(no_spam)
 
