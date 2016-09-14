@@ -331,6 +331,7 @@ entropia = udf(lambda lista_intertweet:
                                     int(np.ceil(
                                         np.log2(max(lista_intertweet[1:110])))))), DoubleType())
 
+fuentesUDF = udf(lambda source: fuente(source), StringType())
 
 def tweetsEnSemana(df):
     return df.groupBy("user_id", "nroTweets")\
@@ -341,20 +342,29 @@ def tweetsEnSemana(df):
 def tweetsAlDia(df):
     return df.groupBy("user_id", "nroTweets").pivot("hora", range(0, 24)).agg(count("text") / df["nroTweets"])
 
-#TODO Avg de Diversidad de Palabras, Fuentes
+def fuenteTweets(df):
+    return (df.groupBy("user_id", "nroTweets")
+            .pivot("fuente", ["uso_web", "uso_mobil", "uso_terceros"])
+            .agg(count("text") / df["nroTweets"]))
+
+
+# TODO Avg de Diversidad de Palabras
 def tweets_features(df, juez):
     nroTweetsDF = df.groupBy("user.id").agg(count("text").alias("nroTweets"))
 
-    df = df.join(nroTweetsDF, nroTweetsDF.id == df.user.id)\
+    df = (df.join(nroTweetsDF, nroTweetsDF.id == df.user.id)\
         .withColumn("fecha_tweet",u_parse_time("created_at").cast('timestamp'))\
         .withColumn("mes",month("fecha_tweet"))\
         .withColumn("dia", date_format("fecha_tweet", "EEEE"))\
         .withColumn("hora", hour("fecha_tweet"))\
-        .drop(nroTweetsDF.id)
+        .withColumn("fuente", fuentesUDF("source"))\
+        .drop(nroTweetsDF.id))
 
     tweetsEnSemanaDF = tweetsEnSemana(df)
 
     tweetsAlDiaDF = tweetsAlDia(df)
+
+    tweetsFuentesDF = fuenteTweets(df)
 
     featuresDF = df.groupBy("user_id", "nroTweets").agg(
         (sum(size("entities.urls")) / col("nroTweets")).alias("urlRatio"),
@@ -376,9 +386,13 @@ def tweets_features(df, juez):
                  .join(tweetsEnSemanaDF, tweetsEnSemanaDF.user_id == featSpamDF.user_id)\
                  .drop(tweetsEnSemanaDF.user_id))
 
-    resultado = (featSpamSemDF\
+    featSpamSemHrDF = (featSpamSemDF\
                  .join(tweetsAlDiaDF, tweetsAlDiaDF.user_id == featSpamSemDF.user_id) \
                  .drop(tweetsAlDiaDF.user_id))
+
+    resultado = (featSpamSemHrDF \
+                       .join(tweetsFuentesDF, tweetsFuentesDF.user_id == featSpamSemHrDF.user_id) \
+                       .drop(tweetsFuentesDF.user_id))
 
     return resultado
 
