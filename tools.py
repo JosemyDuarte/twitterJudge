@@ -214,27 +214,6 @@ def fuente(source):
         return 'uso_terceros'
 
 
-def porcentaje_fuentes(x):
-    aux = check_fuentes(x[1])
-    suma = 0
-    for key, value in aux.items():
-        suma += value
-    for key, value in aux.items():
-        aux[key] = value / suma
-
-    return Row(user_id=x[0], **dict(aux))
-
-
-def check_fuentes(x):
-    if "uso_web" not in x:
-        x["uso_web"] = 0
-    if "uso_mobil" not in x:
-        x["uso_mobil"] = 0
-    if "uso_terceros" not in x:
-        x["uso_terceros"] = 0
-    return x
-
-
 month_map = {
     'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6, 'Jul': 7,
     'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
@@ -467,25 +446,23 @@ def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=
     df_bots = cargar_datos(sc, sql_context, bots)
     df_ciborgs = cargar_datos(sc, sql_context, ciborgs)
 
-    tweets_rdd_humanos = tweets_rdd(df_humanos)
-    tweets_rdd_bots = tweets_rdd(df_bots)
-    tweets_rdd_ciborgs = tweets_rdd(df_ciborgs)
+    tweets_df_humanos = dfParaTweets(df_humanos)
+    tweets_df_bots = dfParaTweets(df_bots)
+    tweets_df_ciborgs = dfParaTweets(df_ciborgs)
 
-    _tweets_rdd = sc.union([tweets_rdd_bots, tweets_rdd_ciborgs, tweets_rdd_humanos])
+    tweetsDF = sc.union([tweets_df_bots, tweets_df_ciborgs, tweets_df_humanos])
 
     df_humanos = df_humanos.dropDuplicates(["user.id"])
     df_bots = df_bots.dropDuplicates(["user.id"])
     df_ciborgs = df_ciborgs.dropDuplicates(["user.id"])
 
-    tweets = tweets_features(_tweets_rdd, juez_spam)
+    tweets = tweets_features(tweetsDF, juez_spam)
 
     usuarios_features_humanos = usuarios_features(df_humanos, 0.0)
     usuarios_features_ciborgs = usuarios_features(df_bots, 1.0)
     usuarios_features_bots = usuarios_features(df_ciborgs, 2.0)
 
-    usuarios = usuarios_features_ciborgs.unionAll(usuarios_features_bots)
-    usuarios = usuarios.unionAll(usuarios_features_humanos)
-    usuarios.cache()
+    usuarios = usuarios_features_ciborgs.union(usuarios_features_bots).union(usuarios_features_humanos).cache()
 
     set_datos = usuarios.join(tweets, tweets.user_id == usuarios.user_id).cache()
 
