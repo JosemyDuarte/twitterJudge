@@ -251,7 +251,7 @@ def avg_spam(juez, tweets):
     tokenizer = Tokenizer(inputCol="text", outputCol="words")
     wordsData = tokenizer.transform(tweets)
 
-    hashingTF = HashingTF(inputCol="words", outputCol="rawFeatures", numFeatures=200)
+    hashingTF = HashingTF(inputCol="words", outputCol="rawFeatures", numFeatures=140)
     featurizedData = hashingTF.transform(wordsData)
 
     idf = IDF(inputCol="rawFeatures", outputCol="features")
