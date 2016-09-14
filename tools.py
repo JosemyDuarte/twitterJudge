@@ -346,14 +346,13 @@ def tweets_features(df, juez):
     tweetsFuentesDF = fuenteTweets(df)
 
     featuresDF = df.groupBy("user_id", "nroTweets").agg(
-        (sum(F.size("entities.urls")) / F.col("nroTweets")).alias("urlRatio"),
-        (sum(diversidadLexicograficaUDF("text")) / F.col("nroTweets")).alias("diversidadLexicografica"),
-        (sum(F.length("text")) / F.col("nroTweets")).alias("avgLongitudTweets"),
-        (sum(nullToInt("in_reply_to_status_id")) / F.col("nroTweets")).alias("replyRatio"),
-        (sum(lengthOfArray("entities.hashtags")) / F.col("nroTweets")).alias("avgHashtags"),
-        (sum(lengthOfArray("entities.user_mentions")) / F.col("nroTweets")).alias("mentionRatio"),
-        (sum(cantPalabras("text")) / F.col("nroTweets")).alias("avgPalabras"),
-        (sum(lengthOfArray("entities.urls")) / F.col("nroTweets")).alias("urlRatio"))
+        (F.sum(F.size("entities.urls")) / F.col("nroTweets")).alias("urlRatio"),
+        (F.sum(diversidadLexicograficaUDF("text")) / F.col("nroTweets")).alias("diversidadLexicografica"),
+        (F.sum(F.length("text")) / F.col("nroTweets")).alias("avgLongitudTweets"),
+        (F.sum(nullToInt("in_reply_to_status_id")) / F.col("nroTweets")).alias("replyRatio"),
+        (F.sum(lengthOfArray("entities.hashtags")) / F.col("nroTweets")).alias("avgHashtags"),
+        (F.sum(lengthOfArray("entities.user_mentions")) / F.col("nroTweets")).alias("mentionRatio"),
+        (F.sum(cantPalabras("text")) / F.col("nroTweets")).alias("avgPalabras"))
 
     spamDF = avg_spam(juez, df)
 
@@ -363,15 +362,18 @@ def tweets_features(df, juez):
 
     featSpamSemDF = (featSpamDF
                      .join(tweetsEnSemanaDF, tweetsEnSemanaDF.user_id == featSpamDF.user_id)
-                     .drop(tweetsEnSemanaDF.user_id))
+                     .drop(tweetsEnSemanaDF.user_id)
+                     .drop(tweetsEnSemanaDF.nroTweets))
 
     featSpamSemHrDF = (featSpamSemDF
                        .join(tweetsAlDiaDF, tweetsAlDiaDF.user_id == featSpamSemDF.user_id)
-                       .drop(tweetsAlDiaDF.user_id))
+                       .drop(tweetsAlDiaDF.user_id)
+                       .drop(tweetsAlDiaDF.nroTweets))
 
     resultado = (featSpamSemHrDF
                  .join(tweetsFuentesDF, tweetsFuentesDF.user_id == featSpamSemHrDF.user_id)
-                 .drop(tweetsFuentesDF.user_id))
+                 .drop(tweetsFuentesDF.user_id)
+                 .drop(tweetsFuentesDF.nroTweets))
 
     return resultado
 
@@ -379,7 +381,7 @@ def tweets_features(df, juez):
 def usuarios_features(df, categoria=-1.0):
     logger.info("Calculando features para usuarios...")
 
-    resultado = (df.select("user.id",
+    resultado = (df.select(df["user.id"].alias("user_id"),
                            nullToInt("user.profile_use_background_image").alias("conImagenFondo"),
                            u_parse_time("user.created_at").cast('timestamp').alias("cuentaCreada"),
                            df["user.favourites_count"].alias("nroFavoritos"),
@@ -390,7 +392,7 @@ def usuarios_features(df, categoria=-1.0):
                            df["user.listed_count"].alias("nroListas"),
                            nullToInt("user.geo_enabled").alias("conGeoAtivo"),
                            reputacion("user.followers_count", "user.friends_count").alias("reputacion"),
-                           df["user.statuses_count"].alias("nroTweets"),
+                           df["user.statuses_count"].alias("totalTweets"),
                            followersRatio("user.followers_count", "user.friends_count").alias("followersRatio"),
                            df["user.screen_name"].alias("nombreUsuario"),
                            entropia("lista_intertweet").alias("entropia")
