@@ -21,7 +21,8 @@ from pyspark.sql.functions import lit
 from pyspark.mllib.regression import LabeledPoint
 from pyspark.mllib.tree import RandomForest
 from pyspark.sql import Row, SparkSession
-from pyspark.sql.functions import udf, lag, length, collect_list, count, size, col, sum, date_format, year, month, hour, avg
+from pyspark.sql.functions import udf, lag, length, collect_list, count, size, col, sum, date_format, year, month, hour, \
+    avg
 from pyspark.sql.window import Window
 
 from pyspark.ml.feature import HashingTF, IDF, Tokenizer
@@ -287,7 +288,8 @@ def avg_spam(juez, tweets):
     idfModel = idf.fit(featurizedData)
     rescaledData = idfModel.transform(featurizedData)
 
-    predictionsAndLabelsDF = juez.transform(rescaledData).groupBy("user_id").agg(avg('predicted_label').alias("avgSpam"))
+    predictionsAndLabelsDF = juez.transform(rescaledData).groupBy("user_id").agg(
+        avg('predicted_label').alias("avgSpam"))
 
     return predictionsAndLabelsDF
 
@@ -333,14 +335,16 @@ entropia = udf(lambda lista_intertweet:
 
 fuentesUDF = udf(lambda source: fuente(source), StringType())
 
+
 def tweetsEnSemana(df):
-    return df.groupBy("user_id", "nroTweets")\
-        .pivot("dia", ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"])\
+    return df.groupBy("user_id", "nroTweets") \
+        .pivot("dia", ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]) \
         .agg(count("text") / df["nroTweets"])
 
 
 def tweetsAlDia(df):
     return df.groupBy("user_id", "nroTweets").pivot("hora", range(0, 24)).agg(count("text") / df["nroTweets"])
+
 
 def fuenteTweets(df):
     return (df.groupBy("user_id", "nroTweets")
@@ -348,17 +352,22 @@ def fuenteTweets(df):
             .agg(count("text") / df["nroTweets"]))
 
 
+def dfParaTweets(df):
+    return df.select(df.user.id.alias("user_id"), df.text, df.in_reply_to_status_id, df.entities, df.created_at,
+                     df.source)
+
+
 # TODO Avg de Diversidad de Palabras
 def tweets_features(df, juez):
-    nroTweetsDF = df.groupBy("user.id").agg(count("text").alias("nroTweets"))
+    nroTweetsDF = df.groupBy("user_id").agg(count("text").alias("nroTweets"))
 
-    df = (df.join(nroTweetsDF, nroTweetsDF.id == df.user.id)\
-        .withColumn("fecha_tweet",u_parse_time("created_at").cast('timestamp'))\
-        .withColumn("mes",month("fecha_tweet"))\
-        .withColumn("dia", date_format("fecha_tweet", "EEEE"))\
-        .withColumn("hora", hour("fecha_tweet"))\
-        .withColumn("fuente", fuentesUDF("source"))\
-        .drop(nroTweetsDF.id))
+    df = (df.join(nroTweetsDF, nroTweetsDF.user_id == df.user_id)
+          .withColumn("fecha_tweet", u_parse_time("created_at").cast('timestamp'))
+          .withColumn("mes", month("fecha_tweet"))
+          .withColumn("dia", date_format("fecha_tweet", "EEEE"))
+          .withColumn("hora", hour("fecha_tweet"))
+          .withColumn("fuente", fuentesUDF("source"))
+          .drop(nroTweetsDF.user_id))
 
     tweetsEnSemanaDF = tweetsEnSemana(df)
 
@@ -378,21 +387,21 @@ def tweets_features(df, juez):
 
     spamDF = avg_spam(juez, df)
 
-    featSpamDF = (featuresDF\
-                 .join(spamDF, featuresDF.user_id == spamDF.user_id)\
-                 .drop(spamDF.user_id))
+    featSpamDF = (featuresDF
+                  .join(spamDF, featuresDF.user_id == spamDF.user_id)
+                  .drop(spamDF.user_id))
 
-    featSpamSemDF = (featSpamDF\
-                 .join(tweetsEnSemanaDF, tweetsEnSemanaDF.user_id == featSpamDF.user_id)\
-                 .drop(tweetsEnSemanaDF.user_id))
+    featSpamSemDF = (featSpamDF
+                     .join(tweetsEnSemanaDF, tweetsEnSemanaDF.user_id == featSpamDF.user_id)
+                     .drop(tweetsEnSemanaDF.user_id))
 
-    featSpamSemHrDF = (featSpamSemDF\
-                 .join(tweetsAlDiaDF, tweetsAlDiaDF.user_id == featSpamSemDF.user_id) \
-                 .drop(tweetsAlDiaDF.user_id))
+    featSpamSemHrDF = (featSpamSemDF
+                       .join(tweetsAlDiaDF, tweetsAlDiaDF.user_id == featSpamSemDF.user_id)
+                       .drop(tweetsAlDiaDF.user_id))
 
-    resultado = (featSpamSemHrDF \
-                       .join(tweetsFuentesDF, tweetsFuentesDF.user_id == featSpamSemHrDF.user_id) \
-                       .drop(tweetsFuentesDF.user_id))
+    resultado = (featSpamSemHrDF
+                 .join(tweetsFuentesDF, tweetsFuentesDF.user_id == featSpamSemHrDF.user_id)
+                 .drop(tweetsFuentesDF.user_id))
 
     return resultado
 
@@ -400,25 +409,26 @@ def tweets_features(df, juez):
 def usuarios_features(df, categoria=-1.0):
     logger.info("Calculando features para usuarios...")
 
-    _usuarios_features = df.select("user.id",
-                                   nullToInt("user.profile_use_background_image").alias("conImagenFondo"),
-                                   u_parse_time("user.created_at").cast('timestamp').alias("cuentaCreada"),
-                                   df["user.favourites_count"].alias("nroFavoritos"),
-                                   nullToInt("user.description").alias("conDescripcion"),
-                                   length("user.description").alias("longitudDescripcion"),
-                                   nullToInt("user.verified").alias("conPerfilVerificado"),
-                                   nullToInt("user.default_profile_image").alias("conImagenDefault"),
-                                   df["user.listed_count"].alias("nroListas"),
-                                   nullToInt("user.geo_enabled").alias("conGeoAtivo"),
-                                   reputacion("user.followers_count", "user.friends_count").alias("reputacion"),
-                                   df["user.statuses_count"].alias("nroTweets"),
-                                   followersRatio("user.followers_count", "user.friends_count").alias("followersRatio"),
-                                   df["user.screen_name"].alias("nombreUsuario"),
-                                   entropia("lista_intertweet").alias("entropia"),
-                                   ).withColumn("anoCreada", year("cuentaCreada")).withColumn("categoria",
-                                                                                              lit(categoria))
+    resultado = (df.select("user.id",
+                           nullToInt("user.profile_use_background_image").alias("conImagenFondo"),
+                           u_parse_time("user.created_at").cast('timestamp').alias("cuentaCreada"),
+                           df["user.favourites_count"].alias("nroFavoritos"),
+                           nullToInt("user.description").alias("conDescripcion"),
+                           length("user.description").alias("longitudDescripcion"),
+                           nullToInt("user.verified").alias("conPerfilVerificado"),
+                           nullToInt("user.default_profile_image").alias("conImagenDefault"),
+                           df["user.listed_count"].alias("nroListas"),
+                           nullToInt("user.geo_enabled").alias("conGeoAtivo"),
+                           reputacion("user.followers_count", "user.friends_count").alias("reputacion"),
+                           df["user.statuses_count"].alias("nroTweets"),
+                           followersRatio("user.followers_count", "user.friends_count").alias("followersRatio"),
+                           df["user.screen_name"].alias("nombreUsuario"),
+                           #entropia("lista_intertweet").alias("entropia")
+                           )
+                 .withColumn("anoCreada", year("cuentaCreada"))
+                 .withColumn("categoria", lit(categoria)))
 
-    return _usuarios_features
+    return resultado
 
 
 def entrenar_spam(sc, sql_context, dir_spam, dir_no_spam, num_trees=3, max_depth=2):
