@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from __future__ import division
 
 import json
@@ -19,13 +21,12 @@ from pyspark.sql.functions import lit
 from pyspark.mllib.regression import LabeledPoint
 from pyspark.mllib.tree import RandomForest
 from pyspark.sql import Row, SparkSession
-from pyspark.sql.functions import udf, lag, length, collect_list, count, size, col
+from pyspark.sql.functions import udf, lag, length, collect_list, count, size, col, sum, date_format, year, month, hour, avg
 from pyspark.sql.window import Window
 
 from pyspark.ml.feature import HashingTF, IDF, Tokenizer
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
-from pyspark.sql.functions import year
 from pyspark.sql.types import *
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -199,14 +200,6 @@ def correc_cond_en(series, lmax, num_int):
     return cce_min
 
 
-def lexical_diversity(text):
-    if len(text) == 0:
-        diversity = 0
-    else:
-        diversity = float(len(set(text))) / float(len(text))
-    return diversity
-
-
 def fuente(source):
     mobil = ["http://twitter.com/download/android", "Twitter for Android", "http://blackberry.com/twitter",
              "Twitter for BlackBerry", "https://mobile.twitter.com", "Mobile Web", "http://twitter.com/download/iphone",
@@ -221,35 +214,6 @@ def fuente(source):
         return 'uso_terceros'
 
 
-def merge_two_dicts(x, y):
-    """Given two dicts, merge them into a new dict as a shallow copy."""
-    z = x.copy()
-    z.update(y)
-    return z
-
-
-def porcentaje_dias(x):
-    aux = check_dias(x[1])
-    suma = 0
-    for key, value in aux.items():
-        suma += value
-    for key, value in aux.items():
-        aux[key] = value / suma
-
-    return Row(user_id=x[0], **dict(aux))
-
-
-def porcentaje_horas(x):
-    aux = check_horas(x[1])
-    suma = 0
-    for key, value in aux.items():
-        suma += value
-    for key, value in aux.items():
-        aux[key] = value / suma
-
-    return Row(user_id=x[0], **dict(aux))
-
-
 def porcentaje_fuentes(x):
     aux = check_fuentes(x[1])
     suma = 0
@@ -259,76 +223,6 @@ def porcentaje_fuentes(x):
         aux[key] = value / suma
 
     return Row(user_id=x[0], **dict(aux))
-
-
-def check_dias(x):
-    if "Mon" not in x:
-        x["Mon"] = 0
-    if "Tue" not in x:
-        x["Tue"] = 0
-    if "Wed" not in x:
-        x["Wed"] = 0
-    if "Thu" not in x:
-        x["Thu"] = 0
-    if "Fri" not in x:
-        x["Fri"] = 0
-    if "Sat" not in x:
-        x["Sat"] = 0
-    if "Sun" not in x:
-        x["Sun"] = 0
-    return x
-
-
-def check_horas(x):
-    if "00" not in x:
-        x["00"] = 0
-    if "01" not in x:
-        x["01"] = 0
-    if "02" not in x:
-        x["02"] = 0
-    if "03" not in x:
-        x["03"] = 0
-    if "04" not in x:
-        x["04"] = 0
-    if "05" not in x:
-        x["05"] = 0
-    if "06" not in x:
-        x["06"] = 0
-    if "07" not in x:
-        x["07"] = 0
-    if "08" not in x:
-        x["08"] = 0
-    if "09" not in x:
-        x["09"] = 0
-    if "10" not in x:
-        x["10"] = 0
-    if "11" not in x:
-        x["11"] = 0
-    if "12" not in x:
-        x["12"] = 0
-    if "13" not in x:
-        x["13"] = 0
-    if "14" not in x:
-        x["14"] = 0
-    if "15" not in x:
-        x["15"] = 0
-    if "16" not in x:
-        x["16"] = 0
-    if "17" not in x:
-        x["17"] = 0
-    if "18" not in x:
-        x["18"] = 0
-    if "19" not in x:
-        x["19"] = 0
-    if "20" not in x:
-        x["20"] = 0
-    if "21" not in x:
-        x["21"] = 0
-    if "22" not in x:
-        x["22"] = 0
-    if "23" not in x:
-        x["23"] = 0
-    return x
 
 
 def check_fuentes(x):
@@ -358,70 +252,7 @@ def parse_time(s):
     )
 
 
-def tweets_rdd(df):
-    _tweets_rdd = df.map(lambda t: (t.user.id, (
-        t.user.id,
-        t.user.screen_name,
-        t.id,
-        t.text,
-        t.entities,
-        t.is_quote_status,
-        t.in_reply_to_status_id,
-        t.favorite_count,
-        t.source,
-        t.retweet_count,
-        t.geo,
-        t.lang,
-        t.created_at,
-        t.place,
-    )))
-
-    return _tweets_rdd
-
-
-def tweets_x_dia(tweets):
-    _tweets_x_dia = tweets.map(
-        lambda t: ((t[0], parser.parse(t[1][12]).strftime('%a')), 1)).reduceByKey(
-        lambda a, b: a + b).map(lambda t: (t[0][0], dict({t[0][1]: t[1]}))).reduceByKey(merge_two_dicts).map(
-        porcentaje_dias).toDF().select(col("user_id"), col("Mon").alias("uso_lunes"),
-                                       col("Tue").alias("uso_martes"),
-                                       col("Wed").alias("uso_miercoles"), col("Thu").alias("uso_jueves"),
-                                       col("Fri").alias("uso_viernes"), col("Sat").alias("uso_sabado"),
-                                       col("Sun").alias("uso_domingo")).repartition("user_id")
-
-    return _tweets_x_dia
-
-
-def tweets_x_hora(tweets):
-    _tweets_x_hora = tweets.map(
-        lambda t: ((t[0], parser.parse(t[1][12]).strftime('%H')), 1)).reduceByKey(
-        lambda a, b: a + b).map(lambda t: (t[0][0], dict({t[0][1]: t[1]}))).reduceByKey(merge_two_dicts).map(
-        porcentaje_horas).toDF().select(col("user_id"), col("00").alias("hora_0"),
-                                        col("01").alias("hora_1"),
-                                        col("02").alias("hora_2"),
-                                        col("03").alias("hora_3"),
-                                        col("04").alias("hora_4"),
-                                        col("05").alias("hora_5"),
-                                        col("06").alias("hora_6"),
-                                        col("07").alias("hora_7"),
-                                        col("08").alias("hora_8"),
-                                        col("09").alias("hora_9"),
-                                        col("10").alias("hora_10"),
-                                        col("11").alias("hora_11"),
-                                        col("12").alias("hora_12"),
-                                        col("13").alias("hora_13"),
-                                        col("14").alias("hora_14"),
-                                        col("15").alias("hora_15"),
-                                        col("16").alias("hora_16"),
-                                        col("17").alias("hora_17"),
-                                        col("18").alias("hora_18"),
-                                        col("19").alias("hora_19"),
-                                        col("20").alias("hora_20"),
-                                        col("21").alias("hora_21"),
-                                        col("22").alias("hora_22"),
-                                        col("23").alias("hora_23")).repartition("user_id")
-
-    return _tweets_x_hora
+u_parse_time = udf(parse_time)
 
 
 def fuentes_usuario(tweets):
@@ -430,87 +261,6 @@ def fuentes_usuario(tweets):
         porcentaje_fuentes).toDF().repartition("user_id")
 
     return _fuentes_usuario
-
-
-def avg_diversidad_lexicografica(tweets):
-    _avg_diversidad_lexicografica = tweets.mapValues(lambda t: lexical_diversity(t[3])).combineByKey(
-        lambda value: (value, 1), lambda x, value: (x[0] + value, x[1] + 1),
-        lambda x, y: (x[0] + y[0], x[1] + y[1])).map(lambda label_value: Row(user_id=label_value[0],
-                                                                             avg_diversidad_lex=float(
-                                                                                 float(label_value[1][0]) / float(
-                                                                                     label_value[1][
-                                                                                         1])))).toDF().repartition(
-        "user_id")
-
-    return _avg_diversidad_lexicografica
-
-
-def avg_long_tweets_x_usuario(tweets):
-    _avg_long_tweets_x_usuario = tweets.mapValues(lambda t: len(t[3])).combineByKey(
-        lambda value: (value, 1),
-        lambda x, value: (x[0] + value, x[1] + 1),
-        lambda x, y: (x[0] + y[0], x[1] + y[1])).map(lambda label_value: Row(user_id=label_value[0],
-                                                                             avg_long_tweets=float(
-                                                                                 float(label_value[1][0]) / float(
-                                                                                     label_value[1][
-                                                                                         1])))).toDF().repartition(
-        "user_id")
-
-    return _avg_long_tweets_x_usuario
-
-
-def reply_ratio(tweets):
-    _reply_ratio = tweets.mapValues(lambda t: 1 if t[6] is not None else 0).combineByKey(
-        lambda value: (value, 1),
-        lambda x, value: (x[0] + value, x[1] + 1),
-        lambda x, y: (x[0] + y[0], x[1] + y[1])).map(lambda label_value: Row(user_id=label_value[0],
-                                                                             reply_ratio=float(
-                                                                                 float(label_value[1][0]) / float(
-                                                                                     label_value[1][
-                                                                                         1])))).toDF().repartition(
-        "user_id")
-
-    return _reply_ratio
-
-
-def avg_hashtags(tweets):
-    _avg_hashtags = tweets.mapValues(lambda t: len(t[4].hashtags)).combineByKey(lambda value: (value, 1),
-                                                                                lambda x, value: (
-                                                                                    x[0] + value, x[1] + 1),
-                                                                                lambda x, y: (x[0] + y[0],
-                                                                                              x[1] + y[
-                                                                                                  1])).map(
-        lambda label_value: Row(user_id=label_value[0], avg_hashtags=float(
-            float(label_value[1][0]) / float(label_value[1][1])))).toDF().repartition("user_id")
-
-    return _avg_hashtags
-
-
-def mention_ratio(tweets):
-    _mention_ratio = tweets.mapValues(lambda t: len(t[4].user_mentions)).combineByKey(
-        lambda value: (value, 1), lambda x, value: (x[0] + value, x[1] + 1),
-        lambda x, y: (x[0] + y[0], x[1] + y[1])).map(lambda label_value: Row(user_id=label_value[0],
-                                                                             mention_ratio=float(
-                                                                                 float(label_value[1][0]) / float(
-                                                                                     label_value[1][
-                                                                                         1])))).toDF().repartition(
-        "user_id")
-
-    return _mention_ratio
-
-
-def avg_palabras(tweets):
-    _avg_palabras = tweets.mapValues(lambda t: len(t[3].split(" "))).combineByKey(lambda value: (value, 1),
-                                                                                  lambda x, value: (
-                                                                                      x[0] + value,
-                                                                                      x[1] + 1),
-                                                                                  lambda x, y: (x[0] + y[0],
-                                                                                                x[1] + y[
-                                                                                                    1])).map(
-        lambda label_value: Row(user_id=label_value[0], avg_palabras=float(
-            float(label_value[1][0]) / float(label_value[1][1])))).toDF().repartition("user_id")
-
-    return _avg_palabras
 
 
 def avg_diversidad(tweets):
@@ -526,40 +276,21 @@ def avg_diversidad(tweets):
     return _avg_diversidad
 
 
-def df_url_ratio(df):
-    return df.groupby(df.user.id).agg((sum(size(df.entities.urls)) / count(df.text)).alias("url_ratio"))
-
-
-def url_ratio(tweets):
-    _url_ratio = tweets.mapValues(lambda t: len(t[4].urls)).combineByKey(lambda value: (value, 1),
-                                                                         lambda x, value: (
-                                                                             x[0] + value, x[1] + 1),
-                                                                         lambda x, y: (
-                                                                             x[0] + y[0], x[1] + y[1])).map(
-        lambda label_value: Row(user_id=label_value[0], url_ratio=float(
-            float(label_value[1][0]) / float(label_value[1][1])))).toDF().repartition("user_id")
-
-    return _url_ratio
-
-
 def avg_spam(juez, tweets):
-    tf = HashingTF(numFeatures=200)
+    tokenizer = Tokenizer(inputCol="text", outputCol="words")
+    wordsData = tokenizer.transform(tweets)
 
-    text_tweets = tweets.mapValues(lambda tweet: Row(features=tf.transform(tweet[3].split(" "))))
+    hashingTF = HashingTF(inputCol="words", outputCol="rawFeatures", numFeatures=200)
+    featurizedData = hashingTF.transform(wordsData)
 
-    predictions = juez.predict(text_tweets.map(lambda t: t[1].features))
+    idf = IDF(inputCol="rawFeatures", outputCol="features")
+    idfModel = idf.fit(featurizedData)
+    rescaledData = idfModel.transform(featurizedData)
 
-    ids_predictions = text_tweets.map(lambda t: t[0]).zip(predictions)
+    predictionsAndLabelsDF = juez.transform(rescaledData).groupBy("user_id").agg(avg('predicted_label').alias("avgSpam"))
 
-    _avg_spam = ids_predictions.combineByKey(lambda value: (value, 1), lambda x, value: (x[0] + value, x[1] + 1),
-                                             lambda x, y: (x[0] + y[0], x[1] + y[1])).map(
-        lambda label_value: Row(user_id=label_value[0],
-                                avg_spam=float(
-                                    float(label_value[1][0]) / float(label_value[1][1])))).toDF().repartition("user_id")
+    return predictionsAndLabelsDF
 
-    return _avg_spam
-
-u_parse_time = udf(parse_time)
 
 def preparar_df(df):
     df.repartition(df.user.id)
@@ -579,76 +310,6 @@ def preparar_df(df):
     return df
 
 
-def tweets_features(_tweets_rdd, juez):
-    logger.info("Calculando features para tweets...")
-
-    logger.info("Iniciando calculo de tweets por dia...")
-
-    _tweets_x_dia = tweets_x_dia(_tweets_rdd)
-
-    logger.info("Iniciando calculo de tweets por hora...")
-
-    _tweets_x_hora = tweets_x_hora(_tweets_rdd)
-    acumulador = _tweets_x_dia.join(_tweets_x_hora, _tweets_x_dia.user_id == _tweets_x_hora.user_id) \
-        .drop(_tweets_x_hora.user_id)
-
-    logger.info("Iniciando exploracion de las fuentes de los tweets...")
-
-    _fuentes_usuario = fuentes_usuario(_tweets_rdd)
-    acumulador = acumulador.join(_fuentes_usuario, _fuentes_usuario.user_id == acumulador.user_id) \
-        .drop(acumulador.user_id)
-
-    logger.info("Iniciando calculo de diversidad lexicografica...")
-
-    _avg_diversidad_lexicografica = avg_diversidad_lexicografica(_tweets_rdd)
-    acumulador = acumulador.join(_avg_diversidad_lexicografica,
-                                 _avg_diversidad_lexicografica.user_id == acumulador.user_id).drop(acumulador.user_id)
-
-    logger.info("Iniciando calculo del promedio de la longuitud de los tweets...")
-
-    _avg_long_tweets_x_usuario = avg_long_tweets_x_usuario(_tweets_rdd)
-    acumulador = acumulador.join(_avg_long_tweets_x_usuario, _avg_long_tweets_x_usuario.user_id == acumulador.user_id) \
-        .drop(acumulador.user_id)
-
-    logger.info("Iniciando calculo del ratio de respuestas...")
-
-    _reply_ratio = reply_ratio(_tweets_rdd)
-    acumulador = acumulador.join(_reply_ratio, _reply_ratio.user_id == acumulador.user_id).drop(acumulador.user_id)
-
-    logger.info("Iniciando calculo del promedio de los hashtags...")
-
-    _avg_hashtags = avg_hashtags(_tweets_rdd)
-    acumulador = acumulador.join(_avg_hashtags, _avg_hashtags.user_id == acumulador.user_id).drop(acumulador.user_id)
-
-    logger.info("Iniciando calculo del promedio de menciones...")
-
-    _mention_ratio = mention_ratio(_tweets_rdd)
-    acumulador = acumulador.join(_mention_ratio, _mention_ratio.user_id == acumulador.user_id).drop(acumulador.user_id)
-
-    logger.info("Iniciando calculo del promedio de palabras por tweet...")
-
-    _avg_palabras = avg_palabras(_tweets_rdd)
-    acumulador = acumulador.join(_avg_palabras, _avg_palabras.user_id == acumulador.user_id).drop(acumulador.user_id)
-
-    logger.info("Iniciando calculo del promedio de diversidad de palabras...")
-
-    _avg_diversidad = avg_diversidad(_tweets_rdd)
-    acumulador = acumulador.join(_avg_diversidad, _avg_diversidad.user_id == acumulador.user_id) \
-        .drop(acumulador.user_id)
-
-    logger.info("Iniciando calculo del ratio de urls...")
-
-    _url_ratio = url_ratio(_tweets_rdd)
-    acumulador = acumulador.join(_url_ratio, _url_ratio.user_id == acumulador.user_id).drop(acumulador.user_id)
-
-    logger.info("Iniciando calculo del avg de tweets SPAM...")
-
-    _avg_spam = avg_spam(juez, _tweets_rdd)
-    resultado = acumulador.join(_avg_spam, _avg_spam.user_id == acumulador.user_id).drop(acumulador.user_id)
-
-    return resultado
-
-
 lengthOfArray = udf(lambda arr: len(arr), IntegerType())
 
 nullToInt = udf(lambda e: 1 if e else 0, IntegerType())  # BooleanToInt, StringISEmpty
@@ -663,12 +324,63 @@ followersRatio = udf(lambda followers, friends:
 
 diversidadLexicograficaUDF = udf(lambda str: float(len(set(str))) / len(str) if str else 0, DoubleType())
 
-cantPalabras = udf(lambda text: len(text.split(" ")), DoubleType())
+cantPalabras = udf(lambda text: len(text.split(" ")), IntegerType())
 
 entropia = udf(lambda lista_intertweet:
                float(correc_cond_en(lista_intertweet[1:110], len(lista_intertweet[1:110]),
                                     int(np.ceil(
                                         np.log2(max(lista_intertweet[1:110])))))), DoubleType())
+
+
+def tweetsEnSemana(df):
+    return df.groupBy("user_id", "nroTweets")\
+        .pivot("dia", ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"])\
+        .agg(count("text") / df["nroTweets"])
+
+
+def tweetsAlDia(df):
+    return df.groupBy("user_id", "nroTweets").pivot("hora", range(0, 24)).agg(count("text") / df["nroTweets"])
+
+#TODO Avg de Diversidad de Palabras, Fuentes
+def tweets_features(df, juez):
+    nroTweetsDF = df.groupBy("user.id").agg(count("text").alias("nroTweets"))
+
+    df = df.join(nroTweetsDF, nroTweetsDF.id == df.user.id)\
+        .withColumn("fecha_tweet",u_parse_time("created_at").cast('timestamp'))\
+        .withColumn("mes",month("fecha_tweet"))\
+        .withColumn("dia", date_format("fecha_tweet", "EEEE"))\
+        .withColumn("hora", hour("fecha_tweet"))\
+        .drop(nroTweetsDF.id)
+
+    tweetsEnSemanaDF = tweetsEnSemana(df)
+
+    tweetsAlDiaDF = tweetsAlDia(df)
+
+    featuresDF = df.groupBy("user_id", "nroTweets").agg(
+        (sum(size("entities.urls")) / col("nroTweets")).alias("urlRatio"),
+        (sum(diversidadLexicograficaUDF("text")) / col("nroTweets")).alias("diversidadLexicografica"),
+        (sum(length("text")) / col("nroTweets")).alias("avgLongitudTweets"),
+        (sum(nullToInt("in_reply_to_status_id")) / col("nroTweets")).alias("replyRatio"),
+        (sum(lengthOfArray("entities.hashtags")) / col("nroTweets")).alias("avgHashtags"),
+        (sum(lengthOfArray("entities.user_mentions")) / col("nroTweets")).alias("mentionRatio"),
+        (sum(cantPalabras("text")) / col("nroTweets")).alias("avgPalabras"),
+        (sum(lengthOfArray("entities.urls")) / col("nroTweets")).alias("urlRatio"))
+
+    spamDF = avg_spam(juez, df)
+
+    featSpamDF = (featuresDF\
+                 .join(spamDF, featuresDF.user_id == spamDF.user_id)\
+                 .drop(spamDF.user_id))
+
+    featSpamSemDF = (featSpamDF\
+                 .join(tweetsEnSemanaDF, tweetsEnSemanaDF.user_id == featSpamDF.user_id)\
+                 .drop(tweetsEnSemanaDF.user_id))
+
+    resultado = (featSpamSemDF\
+                 .join(tweetsAlDiaDF, tweetsAlDiaDF.user_id == featSpamSemDF.user_id) \
+                 .drop(tweetsAlDiaDF.user_id))
+
+    return resultado
 
 
 def usuarios_features(df, categoria=-1.0):
