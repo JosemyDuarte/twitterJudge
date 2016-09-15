@@ -83,8 +83,8 @@ class MotorClasificador:
                 Maxima profundidad utilizada para el bosque del Random Forest
             Returns
             -------
-            True : True
-                En caso de ejecucion sin problemas, True sera retornado.
+            accuracy : Double
+                En caso de ejecucion sin problemas, la exactitud del modelo sera retornado.
             Examples
             --------
             > entrenar_juez("/carpeta/humanos", "/carpeta/ciborgs", "/carpeta/bots", 2, 4)
