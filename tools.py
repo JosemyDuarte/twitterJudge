@@ -237,19 +237,6 @@ def parse_time(s):
 u_parse_time = F.udf(parse_time)
 
 
-def avg_diversidad(tweets):
-    _avg_diversidad = tweets.mapValues(
-        lambda t: len(set(t[3].split(" "))) / len(t[3].split(" "))).combineByKey(lambda value: (value, 1),
-                                                                                 lambda x, value: (
-                                                                                     x[0] + value, x[1] + 1),
-                                                                                 lambda x, y: (
-                                                                                     x[0] + y[0], x[1] + y[1])).map(
-        lambda label_value: Row(user_id=label_value[0], avg_diversidad=float(
-            float(label_value[1][0]) / float(label_value[1][1])))).toDF().repartition("user_id")
-
-    return _avg_diversidad
-
-
 def avg_spam(juez, tweets):
     tokenizer = Tokenizer(inputCol="text", outputCol="words")
     wordsData = tokenizer.transform(tweets)
@@ -313,8 +300,8 @@ diversidadPalabras = F.udf(lambda text: len(set(text.split(" "))) / len(text.spl
 
 def tweets_en_semana(df):
     return (df.groupBy("user_id", "nroTweets")
-        .pivot("dia", ["Monday", "Tuesday", "Wednesday", "Thursday","Friday", "Saturday", "Sunday"])
-        .agg(F.count("text") / df["nroTweets"]))
+            .pivot("dia", ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"])
+            .agg(F.count("text") / df["nroTweets"]))
 
 
 def tweets_al_dia(df):
@@ -338,7 +325,6 @@ def df_para_tweets(df):
                      df.source)
 
 
-# TODO Avg de Diversidad de Palabras
 def tweets_features(df, juez):
     nro_tweets_df = df.groupBy("user_id").agg(F.count("text").alias("nroTweets"))
 
@@ -486,13 +472,11 @@ def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=
     vectorizer.setInputCols([
         "ano_registro", "categoria", "con_descripcion", "con_geo_activo", "con_imagen_default",
         "con_imagen_fondo", "con_perfil_verificado", "entropia", "followers_ratio", "n_favoritos",
-        "n_listas", "n_tweets", "reputacion", "Monday", "Tuesday", "Wednesday", "Thursday","Friday", "Saturday", "Sunday",
-        "0", "1", "2", "3", "4",
-        "5", "6", "7", "8", "9", "10", "11", "12", "13",
-        "14", "15", "16", "17", "18", "19", "20", "21", "22",
-        "23", "uso_mobil", "uso_terceros", "uso_web", "avg_diversidad_lex", "avg_long_tweets",
-        "reply_ratio", "avg_hashtags", "mention_ratio", "avg_palabras", "avg_diversidad_palabras", "url_ratio",
-        "avg_spam"
+        "n_listas", "n_tweets", "reputacion", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
+        "Sunday", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13",
+        "14", "15", "16", "17", "18", "19", "20", "21", "22","23", "uso_mobil", "uso_terceros", "uso_web",
+        "avg_diversidad_lex", "avg_long_tweets", "reply_ratio", "avg_hashtags", "mention_ratio", "avg_palabras",
+        "avg_diversidad_palabras", "url_ratio", "avg_spam"
     ])
 
     vectorizer.setOutputCol("features")
@@ -546,7 +530,8 @@ def predecir(juez_usuario, features):
                             "con_imagen_default",
                             "con_imagen_fondo", "con_perfil_verificado", "entropia",
                             "followers_ratio", "n_favoritos",
-                            "n_listas", "n_tweets", "reputacion", "Monday", "Tuesday", "Wednesday", "Thursday","Friday",
+                            "n_listas", "n_tweets", "reputacion", "Monday", "Tuesday", "Wednesday", "Thursday",
+                            "Friday",
                             "Saturday", "Sunday", "0", "1", "2", "3", "4",
                             "5", "6", "7", "8", "9", "10", "11", "12", "13",
                             "14", "15", "16", "17", "18", "19", "20", "21", "22",
