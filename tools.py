@@ -44,9 +44,8 @@ def iniciar_spark_context(app_name=None, py_files=None):
     conf = SparkConf()
     conf.setAppName(app_name)
     sc = SparkContext.getOrCreate(conf=conf)
-    sc.addPyFile(py_files[0])
-    sc.addPyFile(py_files[1])
-    sc.addPyFile(py_files[2])
+    for file in py_files:
+        sc.addPyFile(file)
     return sc
 
 
