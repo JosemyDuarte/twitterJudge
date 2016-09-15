@@ -48,7 +48,7 @@ def entrenar_juez():
         logging.warn("No se especifico profundidad del bosque, se utilizara 2 por defecto")
     logger.debug("Ejecutando carga y entrenamiento")
     resultado = motor_clasificador.entrenar_juez(data.get("humanos"), data.get("ciborgs"), data.get("bots"),
-                                                 data.get("num_trees", 3), data.get("max_depth", 2))
+                                                 data.get("num_trees", 30), data.get("max_depth", 8))
     logger.debug("Finalizando carga y entrenamiento")
     return json.dumps(dict(resultado=resultado))
 
@@ -84,8 +84,8 @@ def entrenar_spam():
     if "max_depth" not in data:
         logging.warn("No se especifico profundidad del bosque, se utilizara 2 por defecto")
     logger.debug("Ejecutando carga y entrenamiento")
-    resultado = motor_clasificador.entrenar_spam(data["spam"], data["no_spam"], data.get("num_trees", 3),
-                                                 data.get("max_depth", 2))
+    resultado = motor_clasificador.entrenar_spam(data["spam"], data["no_spam"], data.get("num_trees", 30),
+                                                 data.get("max_depth", 8))
     logger.debug("Finalizando carga y entrenamiento")
     return json.dumps(dict(resultado=resultado))
 
