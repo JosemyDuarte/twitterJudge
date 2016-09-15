@@ -417,6 +417,12 @@ def entrenar_spam(sc, sql_context, dir_spam, dir_no_spam, num_trees=3, max_depth
     idfModel = idf.fit(featurizedData)
     rescaledData = idfModel.transform(featurizedData)
 
+    seed = 1800009193L
+    (split_20_df, split_80_df) = rescaledData.randomSplit([20.0, 80.0], seed)
+
+    test_set_df = split_20_df.cache()
+    training_set_df = split_80_df.cache()
+
     rf = RandomForestClassifier().setLabelCol("label") \
         .setPredictionCol("predicted_label") \
         .setFeaturesCol("features") \
@@ -424,9 +430,22 @@ def entrenar_spam(sc, sql_context, dir_spam, dir_no_spam, num_trees=3, max_depth
         .setMaxDepth(max_depth) \
         .setNumTrees(num_trees)
 
-    modelo = rf.fit(rescaledData)
+    rf_pipeline = Pipeline()
+    rf_pipeline.setStages([rf])
 
-    return modelo
+    reg_eval = MulticlassClassificationEvaluator(predictionCol="predicted_label", labelCol="label",
+                                                 metricName="accuracy")
+
+    crossval = CrossValidator(estimator=rf_pipeline, evaluator=reg_eval, numFolds=5)
+    param_grid = ParamGridBuilder().addGrid(rf.maxBins, [50, 100]).build()
+    crossval.setEstimatorParamMaps(param_grid)
+    modelo = crossval.fit(training_set_df).bestModel
+
+    predictions_and_labels_df = modelo.transform(test_set_df)
+
+    accuracy = reg_eval.evaluate(predictions_and_labels_df)
+
+    return modelo, accuracy
 
 
 def cargar_datos(sc, sql_context, directorio):

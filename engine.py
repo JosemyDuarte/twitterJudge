@@ -51,8 +51,8 @@ class MotorClasificador:
                 Maxima profundidad utilizada para el bosque del Random Forest
             Returns
             -------
-            True : True
-                En caso de ejecucion sin problemas, True sera retornado.
+            accuracy : Double
+                En caso de ejecucion sin problemas, la exactitud del juez sera retornado.
             Examples
             --------
             > entrenar_spam("/archivo/spam","/archivo/nospam",3,4)
@@ -61,10 +61,10 @@ class MotorClasificador:
         import tools
         sc = self.sc
         spark_session = self.spark_session
-        modelo = tools.entrenar_spam(sc, spark_session, dir_spam, dir_no_spam, num_trees, max_depth)
+        modelo, accuracy = tools.entrenar_spam(sc, spark_session, dir_spam, dir_no_spam, num_trees, max_depth)
         self.modelo_spam = modelo
 
-        return True
+        return accuracy
 
     def entrenar_juez(self, humanos, ciborgs, bots, num_trees, max_depth):
         """

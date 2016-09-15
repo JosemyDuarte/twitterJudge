@@ -59,8 +59,8 @@ def entrenar_spam():
     Requiere de la especificacion de los directorios para las 2 categorias SPAM y NoSPAM.
     Returns
     -------
-    resultado : bool
-        Booleano que sera True en caso de ejecutarse exitosamente
+    resultado : Double
+        Doueble que sera la exactitud del juez en caso de ejecutarse exitosamente
     Examples
     --------
     > curl -H "Content-Type: application/json" -X POST -d
