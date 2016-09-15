@@ -305,6 +305,8 @@ entropia = F.udf(lambda lista_intertweet:
                                       int(np.ceil(
                                           np.log2(max(lista_intertweet[1:110])))))), DoubleType())
 
+diversidadPalabras = F.udf(lambda text: len(set(text.split(" "))) / len(text.split(" ")), DoubleType())
+
 
 def tweets_en_semana(df):
     return df.groupBy("user_id", "nroTweets") \
@@ -323,7 +325,8 @@ def fuente_tweets(df):
 
 
 def df_para_tweets(df):
-    return df.select(df.user.id.alias("user_id"), df.text, df.in_reply_to_status_id, df.entities, df.created_at,
+    return df.select(df.user.id.alias("user_id"), df.text, df.in_reply_to_status_id, df.entities.urls.alias("entities_url"),
+                     df.entities.hashtags.alias("entities_hashtags"), df.entities.user_mentions.alias("entities_user_mentions"), df.created_at,
                      df.source)
 
 
@@ -346,13 +349,14 @@ def tweets_features(df, juez):
     tweets_fuentes_df = fuente_tweets(df)
 
     featuresDF = df.groupBy("user_id", "nroTweets").agg(
-        (F.sum(F.size("entities.urls")) / F.col("nroTweets")).alias("url_ratio"),
+        (F.sum(F.size("entities_url")) / F.col("nroTweets")).alias("url_ratio"),
         (F.sum(diversidadLexicograficaUDF("text")) / F.col("nroTweets")).alias("avg_diversidad_lex"),
         (F.sum(F.length("text")) / F.col("nroTweets")).alias("avg_long_tweets"),
         (F.sum(nullToInt("in_reply_to_status_id")) / F.col("nroTweets")).alias("reply_ratio"),
-        (F.sum(lengthOfArray("entities.hashtags")) / F.col("nroTweets")).alias("avg_hashtags"),
-        (F.sum(lengthOfArray("entities.user_mentions")) / F.col("nroTweets")).alias("mention_ratio"),
-        (F.sum(cantPalabras("text")) / F.col("nroTweets")).alias("avg_palabras"))
+        (F.sum(lengthOfArray("entities_hashtags")) / F.col("nroTweets")).alias("avg_hashtags"),
+        (F.sum(lengthOfArray("entities_user_mentions")) / F.col("nroTweets")).alias("mention_ratio"),
+        (F.sum(cantPalabras("text")) / F.col("nroTweets")).alias("avg_palabras"),
+        (F.sum(diversidadPalabras("text")) / F.col("nroTweets")).alias("avg_diversidad_palabras"))
 
     spam_df = avg_spam(juez, df)
 
