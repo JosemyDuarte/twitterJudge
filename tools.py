@@ -17,8 +17,6 @@ from dateutil import parser
 from pyspark import SparkContext
 from pyspark.conf import SparkConf
 from pyspark.mllib.feature import HashingTF
-from pyspark.mllib.regression import LabeledPoint
-from pyspark.mllib.tree import RandomForest
 from pyspark.sql import Row, SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
@@ -31,7 +29,6 @@ from pyspark.ml import Pipeline
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 
-
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 pymongo_spark.activate()
 
@@ -43,15 +40,18 @@ def iniciar_spark_context(app_name=None, py_files=None):
     if not app_name:
         app_name = "ExtraerCaracteristicas"
     if not py_files:
-        py_files = ['engine.py', 'app.py', 'tools.py']
+        py_files = ['workspace/engine.py', 'workspace/app.py', 'workspace/tools.py']
     conf = SparkConf()
     conf.setAppName(app_name)
-    sc = SparkContext(conf=conf, pyFiles=py_files)
+    sc = SparkContext.getOrCreate(conf=conf)
+    sc.addPyFile(py_files[0])
+    sc.addPyFile(py_files[1])
+    sc.addPyFile(py_files[2])
     return sc
 
 
-def hive_context(sc):
-    return SparkSession().builder.getOrCreate()
+def spark_session():
+    return SparkSession.builder.getOrCreate()
 
 
 def quantize(signal, partitions, codebook):
@@ -292,10 +292,10 @@ nullToInt = F.udf(lambda e: 1 if e else 0, IntegerType())  # BooleanToInt, Strin
 stringToDate = F.udf(lambda date: parser.parse(date), TimestampType())
 
 reputacion = F.udf(lambda followers, friends:
-                 float(followers) / (followers + friends) if (followers + friends > 0)  else 0, DoubleType())
+                   float(followers) / (followers + friends) if (followers + friends > 0)  else 0, DoubleType())
 
 followersRatio = F.udf(lambda followers, friends:
-                     float(followers) / friends if (friends > 0)  else 0, DoubleType())
+                       float(followers) / friends if (friends > 0)  else 0, DoubleType())
 
 diversidadLexicograficaUDF = F.udf(lambda str: float(len(set(str))) / len(str) if str else 0, DoubleType())
 
@@ -312,9 +312,9 @@ diversidadPalabras = F.udf(lambda text: len(set(text.split(" "))) / len(text.spl
 
 
 def tweets_en_semana(df):
-    return df.groupBy("user_id", "nroTweets") \
-        .pivot("dia", ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]) \
-        .agg(F.count("text") / df["nroTweets"])
+    return (df.groupBy("user_id", "nroTweets")
+        .pivot("dia", ["Monday", "Tuesday", "Wednesday", "Thursday","Friday", "Saturday", "Sunday"])
+        .agg(F.count("text") / df["nroTweets"]))
 
 
 def tweets_al_dia(df):
@@ -328,8 +328,13 @@ def fuente_tweets(df):
 
 
 def df_para_tweets(df):
-    return df.select(df.user.id.alias("user_id"), df.text, df.in_reply_to_status_id, df.entities.urls.alias("entities_url"),
-                     df.entities.hashtags.alias("entities_hashtags"), df.entities.user_mentions.alias("entities_user_mentions"), df.created_at,
+    return df.select(df.user.id.alias("user_id"),
+                     df.text,
+                     df.in_reply_to_status_id,
+                     df.entities.urls.alias("entities_url"),
+                     df.entities.hashtags.alias("entities_hashtags"),
+                     df.entities.user_mentions.alias("entities_user_mentions"),
+                     df.created_at,
                      df.source)
 
 
@@ -364,18 +369,18 @@ def tweets_features(df, juez):
     spam_df = avg_spam(juez, df)
 
     feat_spam_df = (featuresDF
-                  .join(spam_df, featuresDF.user_id == spam_df.user_id)
-                  .drop(spam_df.user_id))
+                    .join(spam_df, featuresDF.user_id == spam_df.user_id)
+                    .drop(spam_df.user_id))
 
     feat_spam_sem_df = (feat_spam_df
-                     .join(tweets_en_semana_df, tweets_en_semana_df.user_id == feat_spam_df.user_id)
-                     .drop(tweets_en_semana_df.user_id)
-                     .drop(tweets_en_semana_df.nroTweets))
+                        .join(tweets_en_semana_df, tweets_en_semana_df.user_id == feat_spam_df.user_id)
+                        .drop(tweets_en_semana_df.user_id)
+                        .drop(tweets_en_semana_df.nroTweets))
 
     feat_spam_sem_hr_df = (feat_spam_sem_df
-                       .join(tweets_al_dia_df, tweets_al_dia_df.user_id == feat_spam_sem_df.user_id)
-                       .drop(tweets_al_dia_df.user_id)
-                       .drop(tweets_al_dia_df.nroTweets))
+                           .join(tweets_al_dia_df, tweets_al_dia_df.user_id == feat_spam_sem_df.user_id)
+                           .drop(tweets_al_dia_df.user_id)
+                           .drop(tweets_al_dia_df.nroTweets))
 
     resultado = (feat_spam_sem_hr_df
                  .join(tweets_fuentes_df, tweets_fuentes_df.user_id == feat_spam_sem_hr_df.user_id)
@@ -405,7 +410,8 @@ def usuarios_features(df, categoria=-1.0):
                            entropia("lista_intertweet").alias("entropia")
                            )
                  .withColumn("ano_registro", F.year("cuenta_creada"))
-                 .withColumn("categoria", F.lit(categoria)))
+                 .withColumn("categoria", F.lit(categoria))
+                 .withColumn("createdAt", F.current_timestamp()))
 
     return resultado
 
@@ -480,8 +486,8 @@ def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=
     vectorizer.setInputCols([
         "ano_registro", "categoria", "con_descripcion", "con_geo_activo", "con_imagen_default",
         "con_imagen_fondo", "con_perfil_verificado", "entropia", "followers_ratio", "n_favoritos",
-        "n_listas", "n_tweets", "reputacion", "lunes", "martes", "miércoles", "jueves",
-        "viernes", "sábado", "domingo", "0", "1", "2", "3", "4",
+        "n_listas", "n_tweets", "reputacion", "Monday", "Tuesday", "Wednesday", "Thursday","Friday", "Saturday", "Sunday",
+        "0", "1", "2", "3", "4",
         "5", "6", "7", "8", "9", "10", "11", "12", "13",
         "14", "15", "16", "17", "18", "19", "20", "21", "22",
         "23", "uso_mobil", "uso_terceros", "uso_web", "avg_diversidad_lex", "avg_long_tweets",
@@ -504,7 +510,7 @@ def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=
     rf_pipeline.setStages([vectorizer, rf])
 
     reg_eval = MulticlassClassificationEvaluator(predictionCol="Predicted_categoria", labelCol="categoria",
-                                                metricName="accuracy")
+                                                 metricName="accuracy")
 
     crossval = CrossValidator(estimator=rf_pipeline, evaluator=reg_eval, numFolds=5)
     param_grid = ParamGridBuilder().addGrid(rf.maxBins, [50, 100]).build()
@@ -517,141 +523,39 @@ def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=
     return rf_model
 
 
-def join_tw_usr(tw_features, usr_features):
-    set_datos = usr_features.join(tw_features, tw_features.user_id == usr_features.user_id).map(
-        lambda t: (Row(user_id=t.user_id,
-                       ano_registro=t.ano_registro,
-                       con_descripcion=t.con_descripcion,
-                       con_geo_activo=t.con_geo_activo,
-                       con_imagen_default=t.con_imagen_default,
-                       con_imagen_fondo=t.con_imagen_fondo,
-                       con_perfil_verificado=t.con_perfil_verificado,
-                       followers_ratio=t.followers_ratio,
-                       n_favoritos=t.n_favoritos,
-                       n_listas=t.n_listas,
-                       n_tweets=t.n_tweets,
-                       reputacion=t.reputacion,
-                       url_ratio=t.url_ratio,
-                       avg_diversidad=t.avg_diversidad,
-                       avg_palabras=t.avg_palabras,
-                       mention_ratio=t.mention_ratio,
-                       avg_hashtags=t.avg_hashtags,
-                       reply_ratio=t.reply_ratio,
-                       avg_long_tweets=t.avg_long_tweets,
-                       avg_diversidad_lex=t.avg_diversidad_lex,
-                       uso_lunes=t.uso_lunes,
-                       uso_martes=t.uso_martes,
-                       uso_miercoles=t.uso_miercoles,
-                       uso_jueves=t.uso_jueves,
-                       uso_viernes=t.uso_viernes,
-                       uso_sabado=t.uso_sabado,
-                       uso_domingo=t.uso_domingo,
-                       hora_0=t.hora_0,
-                       hora_1=t.hora_1,
-                       hora_2=t.hora_2,
-                       hora_3=t.hora_3,
-                       hora_4=t.hora_4,
-                       hora_5=t.hora_5,
-                       hora_6=t.hora_6,
-                       hora_7=t.hora_7,
-                       hora_8=t.hora_8,
-                       hora_9=t.hora_9,
-                       hora_10=t.hora_10,
-                       hora_11=t.hora_11,
-                       hora_12=t.hora_12,
-                       hora_13=t.hora_13,
-                       hora_14=t.hora_14,
-                       hora_15=t.hora_15,
-                       hora_16=t.hora_16,
-                       hora_17=t.hora_17,
-                       hora_18=t.hora_18,
-                       hora_19=t.hora_19,
-                       hora_20=t.hora_20,
-                       hora_21=t.hora_21,
-                       hora_22=t.hora_22,
-                       hora_23=t.hora_23,
-                       uso_web=t.uso_web,
-                       uso_mobil=t.uso_mobil,
-                       uso_terceros=t.uso_terceros,
-                       entropia=t.entropia,  # Entropia
-                       diversidad_url=0,  # Diversidad
-                       avg_spam=t.avg_spam,  # SPAM or not SPAM
-                       safety_url=0,  # Safety url
-                       createdAt=datetime.utcnow(),
-                       nombre_usuario=t.nombre_usuario)))
-    return set_datos
-
-
 def timeline_features(juez_spam, df):
-    _tweets_rdd = tweets_rdd(df)
-    _tweets_features = tweets_features(_tweets_rdd, juez_spam)
-    df = df.dropDuplicates(["user.id"])
-    _usuarios_features = usuarios_features(df)
+    tweets_df = df_para_tweets(df)
+    tweets_features_df = tweets_features(tweets_df, juez_spam)
+    df = df.dropDuplicates(["user_id"])
+    usuarios_features_df = usuarios_features(df)
     logger.info("Realizando join de usuarios con tweets...")
-    set_datos = join_tw_usr(_tweets_features, _usuarios_features)
+    set_datos = (usuarios_features_df
+                 .join(tweets_features_df, tweets_features_df.user_id == usuarios_features_df.user_id)
+                 .drop(tweets_features_df.user_id)
+                 .fillna(0))
     logger.info("Finalizado el join...")
 
     return set_datos
 
 
 def predecir(juez_usuario, features):
-    predicciones = juez_usuario.predict(features.map(lambda t: (t.ano_registro,
-                                                                t.con_descripcion,
-                                                                t.con_geo_activo,
-                                                                t.con_imagen_default,
-                                                                t.con_imagen_fondo,
-                                                                t.con_perfil_verificado,
-                                                                t.followers_ratio,
-                                                                t.n_favoritos,
-                                                                t.n_listas,
-                                                                t.n_tweets,
-                                                                t.reputacion,
-                                                                t.url_ratio,
-                                                                t.avg_diversidad,
-                                                                t.avg_palabras,
-                                                                t.mention_ratio,
-                                                                t.avg_hashtags,
-                                                                t.reply_ratio,
-                                                                t.avg_long_tweets,
-                                                                t.avg_diversidad_lex,
-                                                                t.uso_lunes,
-                                                                t.uso_martes,
-                                                                t.uso_miercoles,
-                                                                t.uso_jueves,
-                                                                t.uso_viernes,
-                                                                t.uso_sabado,
-                                                                t.uso_domingo,
-                                                                t.hora_0,
-                                                                t.hora_1,
-                                                                t.hora_2,
-                                                                t.hora_3,
-                                                                t.hora_4,
-                                                                t.hora_5,
-                                                                t.hora_6,
-                                                                t.hora_7,
-                                                                t.hora_8,
-                                                                t.hora_9,
-                                                                t.hora_10,
-                                                                t.hora_11,
-                                                                t.hora_12,
-                                                                t.hora_13,
-                                                                t.hora_14,
-                                                                t.hora_15,
-                                                                t.hora_16,
-                                                                t.hora_17,
-                                                                t.hora_18,
-                                                                t.hora_19,
-                                                                t.hora_20,
-                                                                t.hora_21,
-                                                                t.hora_22,
-                                                                t.hora_23,
-                                                                t.uso_web,
-                                                                t.uso_mobil,
-                                                                t.uso_terceros,
-                                                                t.entropia,
-                                                                t.diversidad_url,
-                                                                t.avg_spam,
-                                                                t.safety_url)))
+    predicciones = (juez_usuario
+                    .transform(features)
+                    .select("user_id",
+                            "ano_registro", "con_descripcion", "con_geo_activo",
+                            "con_imagen_default",
+                            "con_imagen_fondo", "con_perfil_verificado", "entropia",
+                            "followers_ratio", "n_favoritos",
+                            "n_listas", "n_tweets", "reputacion", "Monday", "Tuesday", "Wednesday", "Thursday","Friday",
+                            "Saturday", "Sunday", "0", "1", "2", "3", "4",
+                            "5", "6", "7", "8", "9", "10", "11", "12", "13",
+                            "14", "15", "16", "17", "18", "19", "20", "21", "22",
+                            "23", "uso_mobil", "uso_terceros", "uso_web",
+                            "avg_diversidad_lex", "avg_long_tweets",
+                            "reply_ratio", "avg_hashtags", "mention_ratio",
+                            "avg_palabras", "avg_diversidad_palabras",
+                            "url_ratio", "avg_spam", "Predicted_categoria",
+                            "nombre_usuario"))
     return predicciones
 
 
@@ -659,8 +563,7 @@ def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri=No
     df = cargar_datos(sc, sql_context, dir_timeline)
     features = timeline_features(juez_spam, df).cache()
     predicciones = predecir(juez_usuario, features)
-    features = features.zip(predicciones).map(lambda t: dict(t[0].asDict().items() + [("prediccion", t[1])])).cache()
     if mongo_uri:
-        features.saveToMongoDB(mongo_uri)
+        predicciones.rdd.map(lambda t: t.asDict()).saveToMongoDB(mongo_uri)
 
-    return features
+    return predicciones
