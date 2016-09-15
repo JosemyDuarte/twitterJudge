@@ -470,13 +470,12 @@ def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=
 
     vectorizer = VectorAssembler()
     vectorizer.setInputCols([
-        "ano_registro", "categoria", "con_descripcion", "con_geo_activo", "con_imagen_default",
-        "con_imagen_fondo", "con_perfil_verificado", "entropia", "followers_ratio", "n_favoritos",
-        "n_listas", "n_tweets", "reputacion", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
-        "Sunday", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13",
-        "14", "15", "16", "17", "18", "19", "20", "21", "22","23", "uso_mobil", "uso_terceros", "uso_web",
-        "avg_diversidad_lex", "avg_long_tweets", "reply_ratio", "avg_hashtags", "mention_ratio", "avg_palabras",
-        "avg_diversidad_palabras", "url_ratio", "avg_spam"
+        "ano_registro", "categoria", "con_descripcion", "con_geo_activo", "con_imagen_default", "con_imagen_fondo",
+        "con_perfil_verificado", "entropia", "followers_ratio", "n_favoritos", "n_listas", "n_tweets", "reputacion",
+        "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "0", "1", "2", "3", "4", "5", "6",
+        "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "uso_mobil",
+        "uso_terceros", "uso_web", "avg_diversidad_lex", "avg_long_tweets", "reply_ratio", "avg_hashtags",
+        "mention_ratio", "avg_palabras", "avg_diversidad_palabras", "url_ratio", "avg_spam"
     ])
 
     vectorizer.setOutputCol("features")
@@ -525,22 +524,14 @@ def timeline_features(juez_spam, df):
 def predecir(juez_usuario, features):
     predicciones = (juez_usuario
                     .transform(features)
-                    .select("user_id",
-                            "ano_registro", "con_descripcion", "con_geo_activo",
-                            "con_imagen_default",
-                            "con_imagen_fondo", "con_perfil_verificado", "entropia",
-                            "followers_ratio", "n_favoritos",
-                            "n_listas", "n_tweets", "reputacion", "Monday", "Tuesday", "Wednesday", "Thursday",
-                            "Friday",
-                            "Saturday", "Sunday", "0", "1", "2", "3", "4",
-                            "5", "6", "7", "8", "9", "10", "11", "12", "13",
-                            "14", "15", "16", "17", "18", "19", "20", "21", "22",
-                            "23", "uso_mobil", "uso_terceros", "uso_web",
-                            "avg_diversidad_lex", "avg_long_tweets",
-                            "reply_ratio", "avg_hashtags", "mention_ratio",
-                            "avg_palabras", "avg_diversidad_palabras",
-                            "url_ratio", "avg_spam", "Predicted_categoria",
-                            "nombre_usuario"))
+                    .select("user_id", "ano_registro", "con_descripcion", "con_geo_activo", "nroTweets",
+                            "con_imagen_default", "con_imagen_fondo", "con_perfil_verificado", "entropia",
+                            "followers_ratio", "n_favoritos", "n_listas", "n_tweets", "reputacion", "Monday", "Tuesday",
+                            "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "0", "1", "2", "3", "4", "5", "6",
+                            "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22",
+                            "23", "uso_mobil", "uso_terceros", "uso_web", "avg_diversidad_lex", "avg_long_tweets",
+                            "reply_ratio", "avg_hashtags", "mention_ratio", "avg_palabras", "avg_diversidad_palabras",
+                            "url_ratio", "avg_spam", "Predicted_categoria", "nombre_usuario"))
     return predicciones
 
 
