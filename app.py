@@ -22,8 +22,8 @@ def entrenar_juez():
     Requiere de la especificacion de los directorios para las 3 categorias.
     Returns
     -------
-    resultado : bool
-        Booleano que sera True en caso de ejecutarse exitosamente
+    resultado : Double
+        Double que representa el resultado de evaluar la exactitud del juez
     Examples
     --------
     > curl -H "Content-Type: application/json" -X POST -d

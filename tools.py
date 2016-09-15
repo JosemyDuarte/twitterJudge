@@ -464,6 +464,12 @@ def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=
 
     set_datos = usuarios.join(tweets, tweets.user_id == usuarios.user_id).drop(tweets.user_id).fillna(0).cache()
 
+    seed = 1800009193L
+    (split_20_df, split_80_df) = set_datos.randomSplit([20.0, 80.0], seed)
+
+    test_set_df = split_20_df.cache()
+    training_set_df = split_80_df.cache()
+
     vectorizer = VectorAssembler()
     vectorizer.setInputCols([
         "ano_registro", "categoria", "con_descripcion", "con_geo_activo", "con_imagen_default", "con_imagen_fondo",
@@ -481,7 +487,7 @@ def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=
     rf.setLabelCol("categoria") \
         .setPredictionCol("Predicted_categoria") \
         .setFeaturesCol("features") \
-        .setSeed(100088121L) \
+        .setSeed(seed) \
         .setMaxDepth(max_depth) \
         .setNumTrees(num_trees)
 
@@ -494,12 +500,16 @@ def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=
     crossval = CrossValidator(estimator=rf_pipeline, evaluator=reg_eval, numFolds=5)
     param_grid = ParamGridBuilder().addGrid(rf.maxBins, [50, 100]).build()
     crossval.setEstimatorParamMaps(param_grid)
-    rf_model = crossval.fit(set_datos).bestModel
+    rf_model = crossval.fit(training_set_df).bestModel
 
     if mongo_uri:
-        set_datos.rdd.map(lambda t: t.asDict()).saveToMongoDB(mongo_uri)
+        training_set_df.rdd.map(lambda t: t.asDict()).saveToMongoDB(mongo_uri)
 
-    return rf_model
+    predictions_and_labels_df = rf_model.transform(test_set_df)
+
+    accuracy = reg_eval.evaluate(predictions_and_labels_df)
+
+    return rf_model, accuracy
 
 
 def timeline_features(juez_spam, df):

@@ -1,7 +1,6 @@
 import logging
 import os
 
-
 import pymongo
 import ConfigParser
 
@@ -100,14 +99,15 @@ class MotorClasificador:
         mongo_uri = (self.mongodb_host + ":" + self.mongodb_port + "/" + self.mongodb_db + "." +
                      self.mongodb_collection_trainingset)
 
-        juez_timelines = tools.entrenar_juez(sc, spark_session, juez_spam, humanos, ciborgs, bots, mongo_uri, num_trees,
-                                             max_depth)
+        juez_timelines, accuracy = tools.entrenar_juez(sc, spark_session, juez_spam, humanos, ciborgs, bots,
+                                                       mongo_uri, num_trees,
+                                                       max_depth)
 
         self.juez_timelines = juez_timelines
 
         logger.info("Finalizando...")
 
-        return True
+        return accuracy
 
     def evaluar(self, dir_timeline):
         """
