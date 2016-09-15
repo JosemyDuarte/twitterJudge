@@ -1,12 +1,12 @@
 import logging
 import os
-import tools
+
 
 import pymongo
 import ConfigParser
 
 configParser = ConfigParser.RawConfigParser()
-configParser.read("config.ini")
+configParser.read("workspace/config.ini")
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # logging.basicConfig(filename="logs/engine.log", format='%(levelname)s:%(message)s', level=logging.INFO)
@@ -20,6 +20,7 @@ class MotorClasificador:
     def __init__(self):
         """Inicializa el SparkContext, SqlContext y MongoDB
         """
+        import tools
         logger.info("Calentando motores...")
         self.sc = tools.iniciar_spark_context(app_name=configParser.get("spark", "name"))
         self.juez_timelines = None
@@ -29,7 +30,7 @@ class MotorClasificador:
         self.mongodb_db = configParser.get("database", "db")
         self.mongodb_collection = configParser.get("database", "collection")
         self.mongodb_collection_trainingset = configParser.get("database", "collection_training")
-        self.hive_context = tools.hive_context(self.sc)
+        self.spark_session = tools.spark_session()
         client = pymongo.MongoClient(self.mongodb_host + ":" + self.mongodb_port)
         db = client[self.mongodb_db]
         coleccion = db[self.mongodb_collection]
@@ -58,9 +59,10 @@ class MotorClasificador:
             > entrenar_spam("/archivo/spam","/archivo/nospam",3,4)
             > entrenar_spam("hdfs://[host]:[port]/archivo/spam","hdfs://[host]:[port]/archivo/nospam")
             """
+        import tools
         sc = self.sc
-        hive_context = self.hive_context
-        modelo = tools.entrenar_spam(sc, hive_context, dir_spam, dir_no_spam, num_trees, max_depth)
+        spark_session = self.spark_session
+        modelo = tools.entrenar_spam(sc, spark_session, dir_spam, dir_no_spam, num_trees, max_depth)
         self.modelo_spam = modelo
 
         return True
@@ -88,16 +90,17 @@ class MotorClasificador:
             --------
             > entrenar_juez("/carpeta/humanos", "/carpeta/ciborgs", "/carpeta/bots", 2, 4)
             """
+        import tools
         sc = self.sc
         juez_spam = self.modelo_spam
-        hive_context = self.hive_context
+        spark_session = self.spark_session
 
         logger.info("Entrenando juez...")
 
         mongo_uri = (self.mongodb_host + ":" + self.mongodb_port + "/" + self.mongodb_db + "." +
                      self.mongodb_collection_trainingset)
 
-        juez_timelines = tools.entrenar_juez(sc, hive_context, juez_spam, humanos, ciborgs, bots, mongo_uri, num_trees,
+        juez_timelines = tools.entrenar_juez(sc, spark_session, juez_spam, humanos, ciborgs, bots, mongo_uri, num_trees,
                                              max_depth)
 
         self.juez_timelines = juez_timelines
@@ -121,10 +124,11 @@ class MotorClasificador:
             --------
             > evaluar('{"directorio":"/carpeta/con/timelines/*"}')
             """
+        import tools
         sc = self.sc
         juez_timeline = self.juez_timelines
         juez_spam = self.modelo_spam
         mongo_uri = self.mongodb_host + ":" + self.mongodb_port + "/" + self.mongodb_db + "." + self.mongodb_collection
-        hive_context = self.hive_context
-        resultado = tools.evaluar(sc, hive_context, juez_spam, juez_timeline, dir_timeline, mongo_uri)
-        return resultado.map(lambda t: t["user_id"]).collect()
+        spark_session = self.spark_session
+        resultado = tools.evaluar(sc, spark_session, juez_spam, juez_timeline, dir_timeline, mongo_uri)
+        return resultado.select("user_id").collect()

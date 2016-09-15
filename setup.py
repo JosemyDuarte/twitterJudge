@@ -9,5 +9,5 @@ setup(
     author='Josemy Duarte',
     author_email='',
     description='Extraer caracteristcas de Timelines',
-    requires=['flask', 'cherrypy', 'paste', 'python-dateutil', 'numpy', 'requests', 'pyopenssl', 'ndg-httpsclient'],
+    requires=['flask', 'cherrypy', 'paste', 'python-dateutil', 'numpy', 'requests', 'pyopenssl', 'ndg-httpsclient', 'pymongo'],
 )
