@@ -2,17 +2,13 @@
 
 from __future__ import division
 
-import json
 import logging
 import math
 import os
 import sys
-import urlparse
-from datetime import datetime
 
 import numpy as np
 import pymongo_spark
-import requests
 from dateutil import parser
 from pyspark import SparkContext
 from pyspark.conf import SparkConf
@@ -36,7 +32,7 @@ pymongo_spark.activate()
 logger = logging.getLogger(__name__)
 
 
-def iniciar_spark_context(app_name=None, py_files=None):
+def iniciar_spark_context(app_name=None, py_files=None, level="ERROR"):
     if not app_name:
         app_name = "ExtraerCaracteristicas"
     if not py_files:
@@ -44,6 +40,7 @@ def iniciar_spark_context(app_name=None, py_files=None):
     conf = SparkConf()
     conf.setAppName(app_name)
     sc = SparkContext.getOrCreate(conf=conf)
+    sc.setLogLevel(level)
     for file in py_files:
         sc.addPyFile(file)
     return sc
