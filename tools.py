@@ -24,9 +24,12 @@ from pyspark.sql import functions as F
 from pyspark.sql.window import Window
 
 from pyspark.ml.feature import HashingTF, IDF, Tokenizer
-from pyspark.ml.classification import RandomForestClassifier
-from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.sql.types import *
+from pyspark.ml.classification import RandomForestClassifier
+from pyspark.ml.feature import VectorAssembler
+from pyspark.ml import Pipeline
+from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
+from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -447,22 +450,23 @@ def cargar_datos(sc, sql_context, directorio):
 
 
 # TODO agregar features faltantes (safety, diversidad url)
-def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=None, num_trees=3, max_depth=2):
+def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=None, num_trees=20, max_depth=8):
     df_humanos = cargar_datos(sc, sql_context, humanos)
     df_bots = cargar_datos(sc, sql_context, bots)
     df_ciborgs = cargar_datos(sc, sql_context, ciborgs)
 
-    tweets_df_humanos = df_para_tweets(df_humanos)
-    tweets_df_bots = df_para_tweets(df_bots)
-    tweets_df_ciborgs = df_para_tweets(df_ciborgs)
+    tweets_humanos = df_para_tweets(df_humanos)
+    tweets_bots = df_para_tweets(df_bots)
+    tweets_ciborgs = df_para_tweets(df_ciborgs)
 
-    tweetsDF = sc.union([tweets_df_bots, tweets_df_ciborgs, tweets_df_humanos])
+    tweets_df = tweets_humanos.union(tweets_bots).union(tweets_ciborgs)
 
-    df_humanos = df_humanos.dropDuplicates(["user.id"])
-    df_bots = df_bots.dropDuplicates(["user.id"])
-    df_ciborgs = df_ciborgs.dropDuplicates(["user.id"])
+    df_humanos = df_humanos.dropDuplicates(["user_id"])
+    df_bots = df_bots.dropDuplicates(["user_id"])
+    df_ciborgs = df_ciborgs.dropDuplicates(["user_id"])
 
-    tweets = tweets_features(tweetsDF, juez_spam)
+    tweets = tweets_features(tweets_df, juez_spam)
+    tweets.cache()
 
     usuarios_features_humanos = usuarios_features(df_humanos, 0.0)
     usuarios_features_ciborgs = usuarios_features(df_bots, 1.0)
@@ -470,77 +474,47 @@ def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=
 
     usuarios = usuarios_features_ciborgs.union(usuarios_features_bots).union(usuarios_features_humanos).cache()
 
-    set_datos = usuarios.join(tweets, tweets.user_id == usuarios.user_id).cache()
+    set_datos = usuarios.join(tweets, tweets.user_id == usuarios.user_id).drop(tweets.user_id).fillna(0).cache()
 
-    labeled_point = set_datos.map(
-        lambda t: LabeledPoint(t.categoria,
-                               [
-                                   t.ano_registro,
-                                   t.con_descripcion,
-                                   t.con_geo_activo,
-                                   t.con_imagen_default,
-                                   t.con_imagen_fondo,
-                                   t.con_perfil_verificado,
-                                   t.followers_ratio,
-                                   t.n_favoritos,
-                                   t.n_listas,
-                                   t.n_tweets,
-                                   t.reputacion,
-                                   t.url_ratio,
-                                   t.avg_diversidad,
-                                   t.avg_palabras,
-                                   t.mention_ratio,
-                                   t.avg_hashtags,
-                                   t.reply_ratio,
-                                   t.avg_long_tweets,
-                                   t.avg_diversidad_lex,
-                                   t.uso_lunes,
-                                   t.uso_martes,
-                                   t.uso_miercoles,
-                                   t.uso_jueves,
-                                   t.uso_viernes,
-                                   t.uso_sabado,
-                                   t.uso_domingo,
-                                   t.hora_0,
-                                   t.hora_1,
-                                   t.hora_2,
-                                   t.hora_3,
-                                   t.hora_4,
-                                   t.hora_5,
-                                   t.hora_6,
-                                   t.hora_7,
-                                   t.hora_8,
-                                   t.hora_9,
-                                   t.hora_10,
-                                   t.hora_11,
-                                   t.hora_12,
-                                   t.hora_13,
-                                   t.hora_14,
-                                   t.hora_15,
-                                   t.hora_16,
-                                   t.hora_17,
-                                   t.hora_18,
-                                   t.hora_19,
-                                   t.hora_20,
-                                   t.hora_21,
-                                   t.hora_22,
-                                   t.hora_23,
-                                   t.uso_web,
-                                   t.uso_mobil,
-                                   t.uso_terceros,
-                                   t.entropia,
-                                   0,
-                                   t.avg_spam,
-                                   0
-                               ])).cache()
+    vectorizer = VectorAssembler()
+    vectorizer.setInputCols([
+        "ano_registro", "categoria", "con_descripcion", "con_geo_activo", "con_imagen_default",
+        "con_imagen_fondo", "con_perfil_verificado", "entropia", "followers_ratio", "n_favoritos",
+        "n_listas", "n_tweets", "reputacion", "lunes", "martes", "miércoles", "jueves",
+        "viernes", "sábado", "domingo", "0", "1", "2", "3", "4",
+        "5", "6", "7", "8", "9", "10", "11", "12", "13",
+        "14", "15", "16", "17", "18", "19", "20", "21", "22",
+        "23", "uso_mobil", "uso_terceros", "uso_web", "avg_diversidad_lex", "avg_long_tweets",
+        "reply_ratio", "avg_hashtags", "mention_ratio", "avg_palabras", "avg_diversidad_palabras", "url_ratio",
+        "avg_spam"
+    ])
 
-    modelo = RandomForest.trainClassifier(labeled_point, numClasses=3, categoricalFeaturesInfo={}, numTrees=num_trees,
-                                          featureSubsetStrategy="auto", impurity='gini', maxDepth=max_depth, maxBins=32)
+    vectorizer.setOutputCol("features")
+
+    rf = RandomForestClassifier()
+
+    rf.setLabelCol("categoria") \
+        .setPredictionCol("Predicted_categoria") \
+        .setFeaturesCol("features") \
+        .setSeed(100088121L) \
+        .setMaxDepth(max_depth) \
+        .setNumTrees(num_trees)
+
+    rf_pipeline = Pipeline()
+    rf_pipeline.setStages([vectorizer, rf])
+
+    reg_eval = MulticlassClassificationEvaluator(predictionCol="Predicted_categoria", labelCol="categoria",
+                                                metricName="accuracy")
+
+    crossval = CrossValidator(estimator=rf_pipeline, evaluator=reg_eval, numFolds=5)
+    param_grid = ParamGridBuilder().addGrid(rf.maxBins, [50, 100]).build()
+    crossval.setEstimatorParamMaps(param_grid)
+    rf_model = crossval.fit(set_datos).bestModel
 
     if mongo_uri:
-        set_datos.map(lambda t: t.asDict()).saveToMongoDB(mongo_uri)
+        set_datos.rdd.map(lambda t: t.asDict()).saveToMongoDB(mongo_uri)
 
-    return modelo
+    return rf_model
 
 
 def join_tw_usr(tw_features, usr_features):
