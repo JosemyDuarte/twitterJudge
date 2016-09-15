@@ -472,7 +472,7 @@ def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=
 
     vectorizer = VectorAssembler()
     vectorizer.setInputCols([
-        "ano_registro", "categoria", "con_descripcion", "con_geo_activo", "con_imagen_default", "con_imagen_fondo",
+        "ano_registro", "con_descripcion", "con_geo_activo", "con_imagen_default", "con_imagen_fondo",
         "con_perfil_verificado", "entropia", "followers_ratio", "n_favoritos", "n_listas", "n_tweets", "reputacion",
         "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "0", "1", "2", "3", "4", "5", "6",
         "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "uso_mobil",
@@ -549,3 +549,6 @@ def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri=No
         predicciones.rdd.map(lambda t: t.asDict()).saveToMongoDB(mongo_uri)
 
     return predicciones
+
+def features_importances_juez(juez):
+    return juez.stages[1].featureImportances

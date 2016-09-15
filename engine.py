@@ -132,3 +132,7 @@ class MotorClasificador:
         spark_session = self.spark_session
         resultado = tools.evaluar(sc, spark_session, juez_spam, juez_timeline, dir_timeline, mongo_uri)
         return resultado.select("user_id").collect()
+
+    def features_importances_juez(self):
+        import tools
+        return tools.features_importances_juez(self.juez_timelines)

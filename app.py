@@ -114,6 +114,11 @@ def evaluar():
     return json.dumps(dict(resultado=resultado))
 
 
+@main.route("/features_importance/", methods=["GET"])
+def features_importances_juez():
+    return json.dumps(dict(resultado=motor_clasificador.features_importances_juez()))
+
+
 @main.route("/alive/", methods=["GET"])
 def alive():
     """Funcion para verificar disponibilidad del servidor"""
