@@ -525,10 +525,23 @@ def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=
         training_set_df.rdd.map(lambda t: t.asDict()).saveToMongoDB(mongo_uri)
 
     predictions_and_labels_df = rf_model.transform(test_set_df)
+    predictions_and_labels_df.cache()
 
     accuracy = reg_eval.evaluate(predictions_and_labels_df)
 
-    return rf_model, accuracy
+    hh = predictions_and_labels_df[(predictions_and_labels_df.categoria == 0) & (predictions_and_labels_df.Predicted_categoria == 0)].count()
+    hb = predictions_and_labels_df[(predictions_and_labels_df.categoria == 0) & (predictions_and_labels_df.Predicted_categoria == 1)].count()
+    hc = predictions_and_labels_df[(predictions_and_labels_df.categoria == 0) & (predictions_and_labels_df.Predicted_categoria == 2)].count()
+
+    bh = predictions_and_labels_df[(predictions_and_labels_df.categoria == 1) & (predictions_and_labels_df.Predicted_categoria == 0)].count()
+    bb = predictions_and_labels_df[(predictions_and_labels_df.categoria == 1) & (predictions_and_labels_df.Predicted_categoria == 1)].count()
+    bc = predictions_and_labels_df[(predictions_and_labels_df.categoria == 1) & (predictions_and_labels_df.Predicted_categoria == 2)].count()
+
+    ch = predictions_and_labels_df[(predictions_and_labels_df.categoria == 2) & (predictions_and_labels_df.Predicted_categoria == 0)].count()
+    cb = predictions_and_labels_df[(predictions_and_labels_df.categoria == 2) & (predictions_and_labels_df.Predicted_categoria == 1)].count()
+    cc = predictions_and_labels_df[(predictions_and_labels_df.categoria == 2) & (predictions_and_labels_df.Predicted_categoria == 2)].count()
+
+    return rf_model, accuracy, [[hh,hb,hc],[bh,bb,bc],[ch,cb,cc]]
 
 
 def timeline_features(juez_spam, df):

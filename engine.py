@@ -99,7 +99,7 @@ class MotorClasificador:
         mongo_uri = (self.mongodb_host + ":" + self.mongodb_port + "/" + self.mongodb_db + "." +
                      self.mongodb_collection_trainingset)
 
-        juez_timelines, accuracy = tools.entrenar_juez(sc, spark_session, juez_spam, humanos, ciborgs, bots,
+        juez_timelines, accuracy, matrix = tools.entrenar_juez(sc, spark_session, juez_spam, humanos, ciborgs, bots,
                                                        mongo_uri, num_trees,
                                                        max_depth)
 
@@ -107,7 +107,7 @@ class MotorClasificador:
 
         logger.info("Finalizando...")
 
-        return accuracy
+        return accuracy, matrix
 
     def evaluar(self, dir_timeline):
         """
