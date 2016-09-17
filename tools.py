@@ -462,6 +462,8 @@ def cargar_datos(sc, sql_context, directorio):
 
 # TODO agregar features faltantes (safety, diversidad url)
 def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=None, num_trees=20, max_depth=8):
+    
+    logger.info("Entrenando juez...")
     df_humanos = cargar_datos(sc, sql_context, humanos)
     df_bots = cargar_datos(sc, sql_context, bots)
     df_ciborgs = cargar_datos(sc, sql_context, ciborgs)
