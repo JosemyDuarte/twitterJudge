@@ -324,6 +324,8 @@ def df_para_tweets(df):
 def tweets_features(df, juez):
     nro_tweets_df = df.groupBy("user_id").agg(F.count("text").alias("nroTweets"))
 
+    logger.info("Calculando features para tweets...")
+
     df = (df.join(nro_tweets_df, nro_tweets_df.user_id == df.user_id)
           .withColumn("fecha_tweet", u_parse_time("created_at").cast('timestamp'))
           .withColumn("mes", F.month("fecha_tweet"))
@@ -368,6 +370,8 @@ def tweets_features(df, juez):
                  .join(tweets_fuentes_df, tweets_fuentes_df.user_id == feat_spam_sem_hr_df.user_id)
                  .drop(tweets_fuentes_df.user_id)
                  .drop(tweets_fuentes_df.nroTweets))
+
+    logger.info("Terminando calculo de features para tweets...")
 
     return resultado
 
@@ -519,15 +523,24 @@ def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=
     crossval = CrossValidator(estimator=rf_pipeline, evaluator=reg_eval, numFolds=5)
     param_grid = ParamGridBuilder().addGrid(rf.maxBins, [50, 100]).build()
     crossval.setEstimatorParamMaps(param_grid)
+
+    logger.info("Buscando el mejor modelo de RandomForest")
+
     rf_model = crossval.fit(training_set_df).bestModel
+
+    logger.info("Guardando en Mongo el set de entrenamiento")
 
     if mongo_uri:
         training_set_df.rdd.map(lambda t: t.asDict()).saveToMongoDB(mongo_uri)
+
+    logger.info("Evaluando set de prueba")
 
     predictions_and_labels_df = rf_model.transform(test_set_df)
     predictions_and_labels_df.cache()
 
     accuracy = reg_eval.evaluate(predictions_and_labels_df)
+
+    logger.info("Calculando matriz de confusion")
 
     hh = predictions_and_labels_df[(predictions_and_labels_df.categoria == 0) & (predictions_and_labels_df.Predicted_categoria == 0)].count()
     hb = predictions_and_labels_df[(predictions_and_labels_df.categoria == 0) & (predictions_and_labels_df.Predicted_categoria == 1)].count()
