@@ -40,7 +40,7 @@ def iniciar_spark_context(app_name=None, py_files=None, level="ERROR"):
     conf = SparkConf()
     conf.setAppName(app_name)
     sc = SparkContext.getOrCreate(conf=conf)
-    sc.setLogLevel(level)
+    #sc.setLogLevel(level)
     for file in py_files:
         sc.addPyFile(file)
     return sc
@@ -263,6 +263,8 @@ def preparar_df(df):
     df_list_intertweet = df_intertweet.groupby(df_intertweet.user_id).agg(
         F.collect_list("time_intertweet").alias("lista_intertweet"))
 
+    df_list_intertweet = df_list_intertweet.filter(F.size(df_list_intertweet.lista_intertweet) > 3)
+
     df = df.join(df_list_intertweet, df["user.id"] == df_list_intertweet["user_id"])
 
     return df
@@ -402,7 +404,7 @@ def usuarios_features(df, categoria=-1.0):
     return resultado
 
 
-def entrenar_spam(sc, sql_context, dir_spam, dir_no_spam, num_trees=3, max_depth=2):
+def entrenar_spam(sc, sql_context, dir_spam, dir_no_spam, num_trees=20, max_depth=8):
     input_spam = sc.textFile(dir_spam)
     input_no_spam = sc.textFile(dir_no_spam)
 
@@ -462,7 +464,7 @@ def cargar_datos(sc, sql_context, directorio):
 
 # TODO agregar features faltantes (safety, diversidad url)
 def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=None, num_trees=20, max_depth=8):
-    
+
     logger.info("Entrenando juez...")
     df_humanos = cargar_datos(sc, sql_context, humanos)
     df_bots = cargar_datos(sc, sql_context, bots)
