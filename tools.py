@@ -290,8 +290,7 @@ fuentesUDF = F.udf(lambda source: fuente(source), StringType())
 
 entropia = F.udf(lambda lista_intertweet:
                  float(correc_cond_en(lista_intertweet[1:110], len(lista_intertweet[1:110]),
-                                      int(np.ceil(
-                                          np.log2(max(lista_intertweet[1:110])))))), DoubleType())
+                                      len(lista_intertweet[1:110]))), DoubleType())
 
 diversidadPalabras = F.udf(lambda text: len(set(text.split(" "))) / len(text.split(" ")), DoubleType())
 
@@ -598,6 +597,7 @@ def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri=No
         predicciones.rdd.map(lambda t: t.asDict()).saveToMongoDB(mongo_uri)
 
     return predicciones
+
 
 def features_importances_juez(juez):
     return juez.stages[1].featureImportances
