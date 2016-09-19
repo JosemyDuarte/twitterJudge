@@ -290,8 +290,7 @@ fuentesUDF = F.udf(lambda source: fuente(source), StringType())
 
 entropia = F.udf(lambda lista_intertweet:
                  float(correc_cond_en(lista_intertweet[1:110], len(lista_intertweet[1:110]),
-                                      int(np.ceil(
-                                          np.log2(max(lista_intertweet[1:110])))))), DoubleType())
+                                      len(lista_intertweet[1:110]))), DoubleType())
 
 diversidadPalabras = F.udf(lambda text: len(set(text.split(" "))) / len(text.split(" ")), DoubleType())
 
@@ -419,19 +418,19 @@ def entrenar_spam(sc, sql_context, dir_spam, dir_no_spam, num_trees=20, max_dept
     hashingTF = HashingTF(inputCol="words", outputCol="rawFeatures", numFeatures=140)
     featurizedData = hashingTF.transform(wordsData)
 
-    idf = IDF(inputCol="rawFeatures", outputCol="features")
+    """idf = IDF(inputCol="rawFeatures", outputCol="features")
     idfModel = idf.fit(featurizedData)
-    rescaledData = idfModel.transform(featurizedData)
+    rescaledData = idfModel.transform(featurizedData)"""
 
     seed = 1800009193L
-    (split_20_df, split_80_df) = rescaledData.randomSplit([20.0, 80.0], seed)
+    (split_20_df, split_80_df) = featurizedData.randomSplit([20.0, 80.0], seed)
 
     test_set_df = split_20_df.cache()
     training_set_df = split_80_df.cache()
 
     rf = RandomForestClassifier().setLabelCol("label") \
         .setPredictionCol("predicted_label") \
-        .setFeaturesCol("features") \
+        .setFeaturesCol("rawFeatures") \
         .setSeed(100088121L) \
         .setMaxDepth(max_depth) \
         .setNumTrees(num_trees)
@@ -598,6 +597,7 @@ def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri=No
         predicciones.rdd.map(lambda t: t.asDict()).saveToMongoDB(mongo_uri)
 
     return predicciones
+
 
 def features_importances_juez(juez):
     return juez.stages[1].featureImportances
