@@ -418,19 +418,19 @@ def entrenar_spam(sc, sql_context, dir_spam, dir_no_spam, num_trees=20, max_dept
     hashingTF = HashingTF(inputCol="words", outputCol="rawFeatures", numFeatures=140)
     featurizedData = hashingTF.transform(wordsData)
 
-    idf = IDF(inputCol="rawFeatures", outputCol="features")
+    """idf = IDF(inputCol="rawFeatures", outputCol="features")
     idfModel = idf.fit(featurizedData)
-    rescaledData = idfModel.transform(featurizedData)
+    rescaledData = idfModel.transform(featurizedData)"""
 
     seed = 1800009193L
-    (split_20_df, split_80_df) = rescaledData.randomSplit([20.0, 80.0], seed)
+    (split_20_df, split_80_df) = featurizedData.randomSplit([20.0, 80.0], seed)
 
     test_set_df = split_20_df.cache()
     training_set_df = split_80_df.cache()
 
     rf = RandomForestClassifier().setLabelCol("label") \
         .setPredictionCol("predicted_label") \
-        .setFeaturesCol("features") \
+        .setFeaturesCol("rawFeatures") \
         .setSeed(100088121L) \
         .setMaxDepth(max_depth) \
         .setNumTrees(num_trees)
