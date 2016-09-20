@@ -585,7 +585,7 @@ def predecir(juez_usuario, features):
                             "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22",
                             "23", "uso_mobil", "uso_terceros", "uso_web", "avg_diversidad_lex", "avg_long_tweets",
                             "reply_ratio", "avg_hashtags", "mention_ratio", "avg_palabras", "avg_diversidad_palabras",
-                            "url_ratio", "avg_spam", "Predicted_categoria", "nombre_usuario"))
+                            "url_ratio", "avg_spam", "Predicted_categoria", "nombre_usuario", "probability", "rawPrediction"))
     return predicciones
 
 
@@ -601,3 +601,6 @@ def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri=No
 
 def features_importances_juez(juez):
     return juez.stages[1].featureImportances
+
+
+def guardar_juez(juez, path):
