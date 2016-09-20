@@ -240,11 +240,11 @@ def avg_spam(juez, tweets):
     hashingTF = HashingTF(inputCol="words", outputCol="rawFeatures", numFeatures=140)
     featurizedData = hashingTF.transform(wordsData)
 
-    idf = IDF(inputCol="rawFeatures", outputCol="features")
+    """idf = IDF(inputCol="rawFeatures", outputCol="features")
     idfModel = idf.fit(featurizedData)
-    rescaledData = idfModel.transform(featurizedData)
+    rescaledData = idfModel.transform(featurizedData)"""
 
-    predictionsAndLabelsDF = juez.transform(rescaledData).groupBy("user_id").agg(
+    predictionsAndLabelsDF = juez.transform(featurizedData).groupBy("user_id").agg(
         F.avg('predicted_label').alias("avg_spam"))
 
     return predictionsAndLabelsDF
