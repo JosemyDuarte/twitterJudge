@@ -84,7 +84,7 @@ class MotorClasificador:
             Returns
             -------
             accuracy : Double
-                En caso de ejecucion sin problemas, la exactitud del modelo sera retornado.
+                En caso de ejecucion sin problemas, la exactitud del modelo y la matriz de confusion seran retornados.
             Examples
             --------
             > entrenar_juez("/carpeta/humanos", "/carpeta/ciborgs", "/carpeta/bots", 2, 4)
@@ -136,3 +136,26 @@ class MotorClasificador:
     def features_importances_juez(self):
         import tools
         return tools.features_importances_juez(self.juez_timelines)
+
+    def guardar_juez(self, tipo_juez, path):
+        """
+            Almacena el modelo generado por el training set
+            Parameters
+            ----------
+            tipo_juez : int
+                Tipo de juez a guardar. 0 = juez_spam, 1 = juez_timelines
+            Returns
+            -------
+            Resultado : Boolean
+                Retorna True en caso de almacenar el modelo exitosamente.
+            Examples
+            --------
+            > guardar_juez(tipo_juez = 0, path="/carpeta/juez_spam")
+            """
+        import tools
+        if tipo_juez == 0:
+            return tools.guardar_juez(self.modelo_spam, path)
+        elif tipo_juez == 1:
+            return tools.guardar_juez(self.juez_timelines, path)
+        else:
+            return False

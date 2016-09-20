@@ -118,6 +118,30 @@ def evaluar():
 def features_importances_juez():
     return json.dumps(dict(resultado=motor_clasificador.features_importances_juez()))
 
+@main.route("/guardar_juez/", methods=["POST"])
+def guardar_juez():
+    """
+    Realiza la evaluacion de los timelines.
+    Requiere de la especificacion del directorio que contiene los timelines
+    Returns
+    -------
+    resultado : diccionario
+        Sera False, en caso de error. Contendra el id de los usuarios evaluados.
+    Examples
+    --------
+    > curl -H "Content-Type: application/json" -X POST -d
+    '{"tipo_juez":0, "path":"/carpeta/juez_spam"}'
+    http://[host]:[port]/guardar_juez/
+    """
+    if not request.json.get("tipo_juez"):
+        logging.error("No se especifico el tipo de juez a almacenar")
+        return json.dumps(dict(resultado=False))
+    if not request.json.get("path"):
+        logging.error("No se especifico el directorio a utilizar")
+        return json.dumps(dict(resultado=False))
+    tipo_juez = request.json.get("tipo_juez")
+    path = request.json.get("path")
+    return json.dumps(dict(resultado=motor_clasificador.guardar_juez(tipo_juez, path)))
 
 @main.route("/alive/", methods=["GET"])
 def alive():
