@@ -17,11 +17,11 @@ from pyspark.sql import Row, SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
 
-from pyspark.ml.feature import HashingTF, IDF, Tokenizer
+from pyspark.ml.feature import HashingTF, Tokenizer
 from pyspark.sql.types import *
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.ml.feature import VectorAssembler
-from pyspark.ml import Pipeline
+from pyspark.ml import Pipeline, PipelineModel
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 
@@ -604,3 +604,9 @@ def features_importances_juez(juez):
 
 
 def guardar_juez(juez, path):
+    juez.save(path)
+    return True
+
+
+def cargar_juez(path):
+    return PipelineModel.load(path)
