@@ -122,48 +122,52 @@ def features_importances_juez():
 @main.route("/guardar_juez/", methods=["POST"])
 def guardar_juez():
     """
-    Realiza la evaluacion de los timelines.
-    Requiere de la especificacion del directorio que contiene los timelines
+    Alamcena el juez entrenado
     Returns
     -------
-    resultado : diccionario
-        Sera False, en caso de error. Contendra el id de los usuarios evaluados.
+    resultado : boolean
+        Sera False, en caso de error. True en ejecucion exitosa
     Examples
     --------
     > curl -H "Content-Type: application/json" -X POST -d
     '{"tipo_juez":0, "path":"/carpeta/juez_spam"}'
     http://[host]:[port]/guardar_juez/
     """
-    if not request.json.get("tipo_juez"):
+    logger.debug("Guardando juez...")
+    data = request.json
+    logging.info(data)
+    if "tipo_juez" not in data:
         logging.error("No se especifico el tipo de juez a almacenar")
         return json.dumps(dict(resultado=False))
-    if not request.json.get("path"):
+    if "path" not in data:
         logging.error("No se especifico el directorio a utilizar")
         return json.dumps(dict(resultado=False))
-    tipo_juez = request.json.get("tipo_juez")
-    path = request.json.get("path")
+    tipo_juez = data.get("tipo_juez")
+    path = data.get("path")
     return json.dumps(dict(resultado=motor_clasificador.guardar_juez(tipo_juez, path)))
 
 
 @main.route("/cargar_juez/", methods=["POST"])
 def cargar_juez():
     """
-    Realiza la evaluacion de los timelines.
-    Requiere de la especificacion del directorio que contiene los timelines
+    Carga un juez previamente almacenado
     Returns
     -------
-    resultado : diccionario
-        Sera False, en caso de error. Contendra el id de los usuarios evaluados.
+    resultado : boolean
+        Sera False, en caso de error. True para ejecucion exitosa
     Examples
     --------
     > curl -H "Content-Type: application/json" -X POST -d
     '{"tipo_juez":0, "path":"/carpeta/juez_spam"}'
     http://[host]:[port]/guardar_juez/
     """
-    if not request.json.get("tipo_juez"):
-        logging.error("No se especifico el tipo de juez a cargar")
+    logger.debug("Cargando juez...")
+    data = request.json
+    logging.info(data)
+    if "tipo_juez" not in data:
+        logging.error("No se especifico el tipo de juez a almacenar")
         return json.dumps(dict(resultado=False))
-    if not request.json.get("path"):
+    if "path" not in data:
         logging.error("No se especifico el directorio a utilizar")
         return json.dumps(dict(resultado=False))
     tipo_juez = request.json.get("tipo_juez")
