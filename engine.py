@@ -159,3 +159,28 @@ class MotorClasificador:
             return tools.guardar_juez(self.juez_timelines, path)
         else:
             return False
+
+    def cargar_juez(self, tipo_juez, path):
+        """
+        Almacena el modelo generado por el training set
+        Parameters
+        ----------
+        tipo_juez : int
+            Tipo de juez a guardar. 0 = juez_spam, 1 = juez_timelines
+        Returns
+        -------
+        Resultado : Boolean
+            Retorna True en caso de almacenar el modelo exitosamente.
+        Examples
+        --------
+        > cargar_juez(tipo_juez = 0, path="/carpeta/juez_spam")
+        """
+        import tools
+        if tipo_juez == 0:
+            self.modelo_spam = tools.cargar_juez(path)
+            return True
+        elif tipo_juez == 1:
+            self.juez_timelines = tools.guardar_juez(path)
+            return True
+        else:
+            return False
