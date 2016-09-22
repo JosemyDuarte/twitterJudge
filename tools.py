@@ -294,6 +294,7 @@ entropia = F.udf(lambda lista_intertweet:
 
 diversidadPalabras = F.udf(lambda text: len(set(text.split(" "))) / len(text.split(" ")), DoubleType())
 
+denseToList = F.udf(lambda den: den.tolist(), ArrayType(DoubleType()))
 
 def tweets_en_semana(df):
     return (df.groupBy("user_id", "nroTweets")
@@ -585,7 +586,7 @@ def predecir(juez_usuario, features):
                             "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22",
                             "23", "uso_mobil", "uso_terceros", "uso_web", "avg_diversidad_lex", "avg_long_tweets",
                             "reply_ratio", "avg_hashtags", "mention_ratio", "avg_palabras", "avg_diversidad_palabras",
-                            "url_ratio", "avg_spam", "Predicted_categoria", "nombre_usuario", "probability", "rawPrediction"))
+                            "url_ratio", "avg_spam", "Predicted_categoria", "nombre_usuario", denseToList("probability").alias("probabilidades")))
     return predicciones
 
 
