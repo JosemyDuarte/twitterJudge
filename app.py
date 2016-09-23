@@ -23,11 +23,11 @@ def entrenar_juez():
     Returns
     -------
     resultado : Double
-        Double que representa el resultado de evaluar la exactitud del juez
+        Double que representa el resultado de evaluar la exactitud del juez y matriz de confusion
     Examples
     --------
     > curl -H "Content-Type: application/json" -X POST -d
-        '{"bots":"/carpeta/con/bots","humanos":"/carpeta/con/humanos","ciborgs":"/carpeta/con/ciborg"}'
+        '{"bots":"/carpeta/con/bots","humanos":"/carpeta/con/humanos","ciborgs":"/carpeta/con/ciborg", "dir_juez": "./jueces/test1"}'
          http://[host]:[port]/entrenar_juez/
     """
     logger.debug("Iniciando carga inicial...")
@@ -42,13 +42,17 @@ def entrenar_juez():
     if "ciborgs" not in data:
         logging.error("No se especifico la direccion de la carpeta para los ciborgs")
         return json.dumps(dict(resultado=False))
+    if "dir_juez" not in data:
+        logging.error("No se especifico la direccion de la carpeta para guardar el juez entrenado")
+        return json.dumps(dict(resultado=False))
     if "num_trees" not in data:
         logging.warn("No se especifico numero de arboles, se utilizaran 3 por defecto")
     if "max_depth" not in data:
         logging.warn("No se especifico profundidad del bosque, se utilizara 2 por defecto")
     logger.debug("Ejecutando carga y entrenamiento")
     accuracy, matrix = motor_clasificador.entrenar_juez(data.get("humanos"), data.get("ciborgs"), data.get("bots"),
-                                                 data.get("num_trees", 30), data.get("max_depth", 8))
+                                                        data.get("dir_juez"), data.get("num_trees", 30),
+                                                        data.get("max_depth", 8))
     logger.debug("Finalizando carga y entrenamiento")
     return json.dumps(dict(accuracy=accuracy, matrix=matrix))
 

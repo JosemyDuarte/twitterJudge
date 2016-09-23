@@ -66,7 +66,7 @@ class MotorClasificador:
 
         return accuracy
 
-    def entrenar_juez(self, humanos, ciborgs, bots, num_trees, max_depth):
+    def entrenar_juez(self, humanos, ciborgs, bots, dir_juez, num_trees, max_depth):
         """
             Entrena el juez que clasifica los tweets spam
             Parameters
@@ -100,8 +100,8 @@ class MotorClasificador:
                      self.mongodb_collection_trainingset)
 
         juez_timelines, accuracy, matrix = tools.entrenar_juez(sc, spark_session, juez_spam, humanos, ciborgs, bots,
-                                                       mongo_uri, num_trees,
-                                                       max_depth)
+                                                               dir_juez, mongo_uri, num_trees,
+                                                               max_depth)
 
         self.juez_timelines = juez_timelines
 
@@ -177,10 +177,12 @@ class MotorClasificador:
         """
         import tools
         if tipo_juez == 0:
-            self.modelo_spam = tools.cargar_juez(path)
+            self.modelo_spam = tools.cargar_juez(path, tipo_juez)
             return True
         elif tipo_juez == 1:
-            self.juez_timelines = tools.guardar_juez(path)
+            mongo_uri = (self.mongodb_host + ":" + self.mongodb_port + "/" + self.mongodb_db + "." +
+                         self.mongodb_collection_trainingset)
+            self.juez_timelines = tools.cargar_juez(path, tipo_juez, mongo_uri)
             return True
         else:
             return False

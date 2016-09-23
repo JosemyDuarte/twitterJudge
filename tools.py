@@ -463,7 +463,7 @@ def cargar_datos(sc, sql_context, directorio):
 
 
 # TODO agregar features faltantes (safety, diversidad url)
-def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=None, num_trees=20, max_depth=8):
+def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, dir_juez, mongo_uri=None, num_trees=20, max_depth=8):
 
     logger.info("Entrenando juez...")
     df_humanos = cargar_datos(sc, sql_context, humanos)
@@ -531,6 +531,11 @@ def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, mongo_uri=
     logger.info("Buscando el mejor modelo de RandomForest")
 
     rf_model = crossval.fit(training_set_df).bestModel
+
+    logger.info("Guardando en juez")
+    guardar_juez(rf_model, dir_juez)
+    logger.info("Guardando set de entrenamiento")
+    training_set_df.write.json(dir_juez+"_trainingset", mode="overwrite")
 
     logger.info("Guardando en Mongo el set de entrenamiento")
 
@@ -609,5 +614,8 @@ def guardar_juez(juez, path):
     return True
 
 
-def cargar_juez(path):
+def cargar_juez(path, tipo, mongo_uri=None):
+    if tipo == 1 and mongo_uri:
+        df = spark_session().read.json(path+"_trainingset")
+        df.rdd.map(lambda t: t.asDict()).saveToMongoDB(mongo_uri)
     return PipelineModel.load(path)
