@@ -603,7 +603,7 @@ def predecir(juez_usuario, features):
                             "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22",
                             "23", "uso_mobil", "uso_terceros", "uso_web", "avg_diversidad_lex", "avg_long_tweets",
                             "reply_ratio", "avg_hashtags", "mention_ratio", "avg_palabras", "avg_diversidad_palabras",
-                            "url_ratio", "avg_spam", "Predicted_categoria", "nombre_usuario", denseToList("probability").alias("probabilidades")))
+                            "createdAt", "cuenta_creada", "url_ratio", "avg_spam", "Predicted_categoria", "nombre_usuario", denseToList("probability").alias("probabilidades")))
     return predicciones
 
 
