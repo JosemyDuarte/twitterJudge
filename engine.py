@@ -137,6 +137,30 @@ class MotorClasificador:
         import tools
         return tools.features_importances_juez(self.juez_timelines)
 
+    def evaluar_online(self, timeline):
+        """
+            Evalua y clasifica un usuario
+            Parameters
+            ----------
+            timeline : str
+                Timeline del usuario a clasificar
+            Returns
+            -------
+            Resultado : [int, ] list
+                Retorna el ID del usuaio evaluado
+            Examples
+            --------
+            > evaluar('{"timeline":""}')
+            """
+        import tools
+        sc = self.sc
+        juez_timeline = self.juez_timelines
+        juez_spam = self.modelo_spam
+        mongo_uri = self.mongodb_host + ":" + self.mongodb_port + "/" + self.mongodb_db + "." + self.mongodb_collection
+        spark_session = self.spark_session
+        resultado = tools.evaluar_online(sc, spark_session, juez_spam, juez_timeline, timeline, mongo_uri)
+        return resultado.select("user_id").collect()
+
     def guardar_juez(self, tipo_juez, path):
         """
             Almacena el modelo generado por el training set

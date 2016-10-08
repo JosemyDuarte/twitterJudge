@@ -118,6 +118,30 @@ def evaluar():
     return json.dumps(dict(resultado=resultado))
 
 
+@main.route("/evaluar_online/", methods=["POST"])
+def evaluar_online():
+    """
+    Realiza la evaluacion de un timeline.
+    Requiere de la especificacion del timeline de un usuario especifico
+    Returns
+    -------
+    resultado : diccionario
+        Sera False, en caso de error. Contendra el id del usuario evaluado.
+    Examples
+    --------
+    > curl -H "Content-Type: application/json" -X POST -d
+    '{"timeline":""}'
+    http://[host]:[port]/evaluar/
+    """
+    if not request.json.get("timeline"):
+        logging.error("No se especifico el parametro 'timeline' para evaluar")
+        return json.dumps(dict(resultado=False))
+    timeline = request.json.get("timeline")
+    logger.info("Iniciando evaluacion sobre: %s", timeline)
+    resultado = motor_clasificador.evaluar_online(timeline)
+    return json.dumps(dict(resultado=resultado))
+
+
 @main.route("/features_importance/", methods=["GET"])
 def features_importances_juez():
     return json.dumps(dict(resultado=motor_clasificador.features_importances_juez()))

@@ -6,6 +6,7 @@ import logging
 import math
 import os
 import sys
+import tempfile
 
 import numpy as np
 import pymongo_spark
@@ -462,6 +463,17 @@ def cargar_datos(sc, sql_context, directorio):
     return df
 
 
+def cargar_timeline(sc, sql_context, timeline):
+    logger.info("Creando archivo temporal...")
+    tf = tempfile.NamedTemporaryFile(delete=False, suffix='.json')
+    file = tf.name
+    tf.write(timeline.encode('utf-8'))
+    tf.close()
+    df = sql_context.read.json(file)
+    df = preparar_df(df)
+    return df
+
+
 # TODO agregar features faltantes (safety, diversidad url)
 def entrenar_juez(sc, sql_context, juez_spam, humanos, ciborgs, bots, dir_juez, mongo_uri=None, num_trees=20, max_depth=8):
 
@@ -597,6 +609,16 @@ def predecir(juez_usuario, features):
 
 def evaluar(sc, sql_context, juez_spam, juez_usuario, dir_timeline, mongo_uri=None):
     df = cargar_datos(sc, sql_context, dir_timeline)
+    features = timeline_features(juez_spam, df).cache()
+    predicciones = predecir(juez_usuario, features)
+    if mongo_uri:
+        predicciones.rdd.map(lambda t: t.asDict()).saveToMongoDB(mongo_uri)
+
+    return predicciones
+
+
+def evaluar_online(sc, sql_context, juez_spam, juez_usuario, timeline, mongo_uri=None):
+    df = cargar_timeline(sc, sql_context, timeline)
     features = timeline_features(juez_spam, df).cache()
     predicciones = predecir(juez_usuario, features)
     if mongo_uri:
