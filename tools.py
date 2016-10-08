@@ -599,10 +599,17 @@ def predecir(juez_usuario, features):
                     .select("user_id", "ano_registro", "con_descripcion", "con_geo_activo", "nroTweets",
                             "con_imagen_default", "con_imagen_fondo", "con_perfil_verificado", "entropia",
                             "followers_ratio", "n_favoritos", "n_listas", "n_tweets", "reputacion", "Monday", "Tuesday",
-                            "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "0", "1", "2", "3", "4", "5", "6",
-                            "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22",
-                            "23", "uso_mobil", "uso_terceros", "uso_web", "avg_diversidad_lex", "avg_long_tweets",
-                            "reply_ratio", "avg_hashtags", "mention_ratio", "avg_palabras", "avg_diversidad_palabras",
+                            "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", F.col("0").alias("hora_0"),
+                            F.col("1").alias("hora_1"), F.col("2").alias("hora_2"), F.col("3").alias("hora_3"),
+                            F.col("4").alias("hora_4"), F.col("5").alias("hora_5"), F.col("6").alias("hora_6"),
+                            F.col("7").alias("hora_7"), F.col("8").alias("hora_8"), F.col("9").alias("hora_9"),
+                            F.col("10").alias("hora_10"), F.col("11").alias("hora_11"), F.col("12").alias("hora_12"),
+                            F.col("13").alias("hora_13"), F.col("14").alias("hora_14"), F.col("15").alias("hora_15"),
+                            F.col("16").alias("hora_16"), F.col("17").alias("hora_17"), F.col("18").alias("hora_18"),
+                            F.col("19").alias("hora_19"), F.col("20").alias("hora_20"), F.col("21").alias("hora_21"),
+                            F.col("22").alias("hora_22"), F.col("23").alias("hora_23"), "uso_mobil", "uso_terceros",
+                            "uso_web", "avg_diversidad_lex", "avg_long_tweets", "reply_ratio", "avg_hashtags",
+                            "mention_ratio", "avg_palabras", "avg_diversidad_palabras",
                             "createdAt", "cuenta_creada", "url_ratio", "avg_spam", "Predicted_categoria", "nombre_usuario", denseToList("probability").alias("probabilidades")))
     return predicciones
 
