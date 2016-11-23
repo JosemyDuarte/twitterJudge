@@ -1,6 +1,6 @@
 # Twitter Judge
 
-Twitter Judge es un clasificador de usuarios de Twitter en Humanos, Bots o Ciborgs. Este proyecto es la base del artículo que desarrollé con mi compañero [Gabriel](https://github.com/gersaibot) para la cuarta Conferencia Nacional de Computación, Informática y Sistemas.
+Twitter Judge es un clasificador de usuarios de Twitter en Humanos, Bots o Ciborgs. Este proyecto es la base del [artículo](http://concisa.net.ve/memorias/CoNCISa2016/CoNCISa2016-p057-064.pdf) que desarrollé con mi compañero [Gabriel](https://github.com/gersaibot) para la cuarta Conferencia Nacional de Computación, Informática y Sistemas.
 
 ## Tabla de contenido
 
