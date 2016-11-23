@@ -17,6 +17,7 @@ Es necesario contar con una Base de Datos MongoDB, la cual actuará como capa de
 ```bash
 docker run -p 27017:27017 --name <mongo_alias> mongo
 ```
+Si ya se tiene esta imagen en el repositorio local, se ejecutará inmediatamente una instancia del docker de mongo, en caso contrario, tomará unos minutos en realizar la descarga y posteriormente tendremos una instancia de mongo ejecutandose.
 
 ### Quick Start
 
