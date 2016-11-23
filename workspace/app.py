@@ -102,12 +102,15 @@ def evaluar():
     Returns
     -------
     resultado : diccionario
-        Sera False, en caso de error. Contendra el id de los usuarios evaluados.
+        Contendra el id de los usuarios evaluados y un arreglo referente a la pertenencia de dicho usuarios
+        a cada una de las posibles categorias. Sera False, en caso de error.
     Examples
     --------
     > curl -H "Content-Type: application/json" -X POST -d
     '{"directorio":"/carpeta/con/timelines/*"}'
     http://[host]:[port]/evaluar/
+
+    {"resultado": [[3455637141, [1.0, 0.0, 0.0]]}
     """
     if not request.json.get("directorio"):
         logging.error("No se especifico el parametro 'directorio' para evaluar")
@@ -132,6 +135,8 @@ def evaluar_online():
     > curl -H "Content-Type: application/json" -X POST -d
     '{"timeline":""}'
     http://[host]:[port]/evaluar/
+
+    {"resultado": [[3455637141, [1.0, 0.0, 0.0]]}
     """
     if not request.json.get("timeline"):
         logging.error("No se especifico el parametro 'timeline' para evaluar")

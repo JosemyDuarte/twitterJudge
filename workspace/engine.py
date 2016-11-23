@@ -137,6 +137,7 @@ class MotorClasificador:
         import tools
         return tools.features_importances_juez(self.juez_timelines)
 
+    # TODO codigo repetido, refactorizar con evaluar()
     def evaluar_online(self, timeline):
         """
             Evalua y clasifica un usuario
@@ -159,7 +160,7 @@ class MotorClasificador:
         mongo_uri = self.mongodb_host + ":" + self.mongodb_port + "/" + self.mongodb_db + "." + self.mongodb_collection
         spark_session = self.spark_session
         resultado = tools.evaluar_online(sc, spark_session, juez_spam, juez_timeline, timeline, mongo_uri)
-        return resultado.select("user_id").collect()
+        return resultado.select("user_id", "probabilidades").collect()
 
     def guardar_juez(self, tipo_juez, path):
         """
