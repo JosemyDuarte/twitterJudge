@@ -131,7 +131,7 @@ class MotorClasificador:
         mongo_uri = self.mongodb_host + ":" + self.mongodb_port + "/" + self.mongodb_db + "." + self.mongodb_collection
         spark_session = self.spark_session
         resultado = tools.evaluar(sc, spark_session, juez_spam, juez_timeline, dir_timeline, mongo_uri)
-        return resultado.select("user_id").collect()
+        return resultado.select("user_id", "probabilidades").collect()
 
     def features_importances_juez(self):
         import tools
