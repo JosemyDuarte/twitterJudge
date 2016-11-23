@@ -1,5 +1,7 @@
 # Twitter Judge
 
+Twitter Judge es un clasificador de usuarios de Twitter en Humanos, Bots o Ciborgs. Este proyecto es la base del artículo que desarrollé con mi compañero [Gabriel](https://github.com/gersaibot) para la cuarta Conferencia Nacional de Computación, Informática y Sistemas.
+
 ## Tabla de contenido
 
 * [Introducción](#introducción)
@@ -8,7 +10,7 @@
 * [Referencias](#referencias)
 
 ### Introducción
-Twitter Judge es un clasificador de usuarios de Twitter en Humanos, Bots o Ciborgs. Este es un proyecto desarrollado con Apache Spark en su versión 2.0 y su respectiva librería para Machine Learning. Todo el código se encuentra en Python. El proyecto se encuentra dockerizado para facilitar su despliegue y utilización, sin embargo, se puede ejecutar localmente instalando las dependencias necesarias. Al ejecutarlo se levanta un servidor que proveerá de servicios que permitirán entrenar, evaluar y clasificar timelines de usuarios Twitter según ciertos criterios definidos mediante un Random Forest. 
+ Este es un proyecto desarrollado con Apache Spark en su versión 2.0 y su respectiva librería para Machine Learning. Todo el código se encuentra en Python. El proyecto se encuentra dockerizado para facilitar su despliegue y utilización, sin embargo, se puede ejecutar localmente instalando las dependencias necesarias. Al ejecutarlo se levanta un servidor que proveerá de servicios que permitirán entrenar, evaluar y clasificar timelines de usuarios Twitter según ciertos criterios definidos mediante un Random Forest. 
 
 Los usuarios se clasifican en las siguientes 3 categorías:
 
@@ -76,6 +78,6 @@ El campo ```resultado``` contendrá una lista de los ids de usuarios evaluados j
 
 ### Referencias
 
-[Venezolanos en Twitter: ¿Humanos, Bots o Ciborgs? ](http://concisa.net.ve/memorias/CoNCISa2016/CoNCISa2016-p057-064.pdf)
-[Apache Spark](https://spark.apache.org/releases/spark-release-2-0-0.html)
-[Docker](https://www.docker.com/)
+* [Venezolanos en Twitter: ¿Humanos, Bots o Ciborgs? ](http://concisa.net.ve/memorias/CoNCISa2016/CoNCISa2016-p057-064.pdf)
+* [Apache Spark](https://spark.apache.org/releases/spark-release-2-0-0.html)
+* [Docker](https://www.docker.com/)
