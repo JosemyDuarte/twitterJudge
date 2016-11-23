@@ -33,7 +33,7 @@ Si ya se tiene esta imagen en el repositorio local, se ejecutará inmediatamente
 Posteriormente, descargaremos la imagen que provee del proyecto.
 
 ```bash
-docker pull josemyd/apispark
+docker pull josemyd/twitterjudge
 ```
 
 ### Quickstart
@@ -41,7 +41,7 @@ docker pull josemyd/apispark
 Por defecto, el servidor escuchará las peticiones por el puerto ```5433```, por lo que debemos hacer port-fowarding para poder realizar las peticiones respectivas a la instancia en ejecución. Además, debemos realizar el enlace necesario para que el proyecto sea capaz de comunicarse con la instancia de **mongo** que se está ejecutando en background.
 
 ```bash
-docker run -ti --rm --link <mongo_alias>:mongo -p 5433:5433 josemyd/apispark bin/spark-submit workspace/server.py
+docker run -ti --rm --link <mongo_alias>:mongo -p 5433:5433 josemyd/twitterjudge bin/spark-submit workspace/server.py
 ```
 
 Una vez hecho esto, el servidor estará listo para escuchar nuestras peticiones. Dentro de la carpeta ```workspace/entrenamiento``` se proveen de 4 timelines distintos para cada categoría, además de un pequeño set de tweets spam y no spam. Igualmente, en la carpeta **evaluar** se encuentran 3 timelines distintos. Todo esto con el fin de facilitar probar las funcionalidades del **Twitter Judge**.
