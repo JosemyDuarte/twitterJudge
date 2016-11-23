@@ -1,22 +1,9 @@
 __pycache__
 .idea
-datos
 *~
 *.pyc
-logs
-tmp
-metastore_db
-.ipython
-datos (copia)
 derby.log
-.bash_history
-.sonar
-.ipynb_checkpoints
-sonar-project.properties
 _build
 _static
 _templates
-conf.py
-index.rst
-Makefile
 .cache
