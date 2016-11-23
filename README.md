@@ -6,7 +6,7 @@ Twitter Judge es un clasificador de usuarios de Twitter en Humanos, Bots o Cibor
 
 * [Introducción](#introducción)
 * [Instalación](#instalación)
-* [Quick Start](#quickstart)
+* [Quickstart](#quickstart)
 * [Referencias](#referencias)
 
 ### Introducción
